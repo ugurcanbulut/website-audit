@@ -1,0 +1,64 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: uiaudit
+      POSTGRES_PASSWORD: uiaudit
+      POSTGRES_DB: uiaudit
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - uiaudit
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U uiaudit -d uiaudit"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6381:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - uiaudit
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://uiaudit:uiaudit@postgres:5432/uiaudit
+      REDIS_URL: redis://redis:6379
+    volumes:
+      - screenshots:/app/public/screenshots
+    networks:
+      - uiaudit
+
+volumes:
+  postgres_data:
+  redis_data:
+  screenshots:
+
+networks:
+  uiaudit:
+    driver: bridge
