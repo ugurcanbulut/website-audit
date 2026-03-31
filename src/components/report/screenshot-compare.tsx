@@ -49,6 +49,8 @@ export function ScreenshotCompare({
                     src={vr.screenshotPath}
                     alt={`Screenshot at ${vr.viewportName} (${vr.width}x${vr.height})`}
                     className="w-full h-auto object-contain"
+                    estimatedWidth={vr.width * 2}
+                    estimatedHeight={vr.height * 6}
                   />
                 </div>
               </CardContent>

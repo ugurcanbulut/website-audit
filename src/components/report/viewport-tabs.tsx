@@ -87,6 +87,8 @@ export function ViewportTabs({ viewportResults, issues }: ViewportTabsProps) {
                     src={vr.screenshotPath}
                     alt={alt}
                     className="w-full h-auto object-contain max-h-[600px]"
+                    estimatedWidth={vr.width * 2}
+                    estimatedHeight={vr.height * 6}
                   />
                 </div>
               </ScreenshotGallery>
