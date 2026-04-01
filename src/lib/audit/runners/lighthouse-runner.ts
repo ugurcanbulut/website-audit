@@ -21,6 +21,7 @@ export interface LighthouseRunnerInput {
   url: string;
   debuggingPort: number;
   categories?: string[];
+  formFactor?: "desktop" | "mobile";
 }
 
 export interface LighthouseRunnerOutput {
@@ -79,6 +80,13 @@ export async function runLighthouse(
     output: "json",
     logLevel: "error",
     onlyCategories,
+    formFactor: input.formFactor ?? "desktop",
+    screenEmulation: input.formFactor === "mobile"
+      ? { mobile: true, width: 412, height: 823, deviceScaleFactor: 1.75 }
+      : { mobile: false, width: 1350, height: 940, deviceScaleFactor: 1 },
+    throttling: input.formFactor === "mobile"
+      ? { cpuSlowdownMultiplier: 4, downloadThroughputKbps: 1600, uploadThroughputKbps: 750, rttMs: 150 }
+      : undefined,
   });
 
   if (!result) {

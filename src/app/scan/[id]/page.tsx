@@ -26,6 +26,7 @@ import { ReportTabs } from "@/components/report/report-tabs";
 import { IssuesByCategory } from "@/components/report/issues-by-category";
 import { ScreenshotCompare } from "@/components/report/screenshot-compare";
 import { ViewportTabs } from "@/components/report/viewport-tabs";
+import { LighthouseReport } from "@/components/report/lighthouse-report";
 import {
   Card,
   CardContent,
@@ -182,19 +183,42 @@ export default async function ScanDetailPage({ params }: ScanDetailPageProps) {
     }
   }
 
-  // Extract Lighthouse scores if available
+  // Extract Lighthouse scores if available (supports new dual-format and legacy)
   let lighthouseScores: { performance?: number; bestPractices?: number; seo?: number } | undefined;
+  let desktopLhr: Record<string, unknown> | undefined;
+  let mobileLhr: Record<string, unknown> | undefined;
+
   for (const vr of vpResultsRaw) {
     const lhJson = vr.lighthouseJson as Record<string, unknown> | null;
-    if (lhJson?.categories) {
+    if (!lhJson) continue;
+
+    // New format: { desktop: LHR, mobile: LHR }
+    if (lhJson.desktop) {
+      desktopLhr = lhJson.desktop as Record<string, unknown>;
+      const cats = (desktopLhr.categories ?? {}) as Record<string, { score?: number | null }>;
+      lighthouseScores = {};
+      if (cats.performance?.score != null) lighthouseScores.performance = Math.round(cats.performance.score * 100);
+      if (cats["best-practices"]?.score != null) lighthouseScores.bestPractices = Math.round(cats["best-practices"].score * 100);
+      if (cats.seo?.score != null) lighthouseScores.seo = Math.round(cats.seo.score * 100);
+    }
+    if (lhJson.mobile) {
+      mobileLhr = lhJson.mobile as Record<string, unknown>;
+    }
+    // Legacy format: direct LHR (backward compat)
+    if (lhJson.categories && !lhJson.desktop) {
+      desktopLhr = lhJson;
       const cats = lhJson.categories as Record<string, { score?: number | null }>;
       lighthouseScores = {};
       if (cats.performance?.score != null) lighthouseScores.performance = Math.round(cats.performance.score * 100);
       if (cats["best-practices"]?.score != null) lighthouseScores.bestPractices = Math.round(cats["best-practices"].score * 100);
       if (cats.seo?.score != null) lighthouseScores.seo = Math.round(cats.seo.score * 100);
-      break;
     }
+    break;
   }
+
+  const lighthouseContent = (desktopLhr || mobileLhr) ? (
+    <LighthouseReport desktopLhr={desktopLhr} mobileLhr={mobileLhr} />
+  ) : undefined;
 
   const overallScore = scan.overallScore ?? 0;
   const overallGrade = (scan.overallGrade as Grade | null) ?? "F";
@@ -256,6 +280,7 @@ export default async function ScanDetailPage({ params }: ScanDetailPageProps) {
         <ReportTabs
           overviewContent={overviewContent}
           issuesContent={issuesContent}
+          lighthouseContent={lighthouseContent}
           screenshotsContent={screenshotsContent}
           viewportContent={viewportContent}
         />

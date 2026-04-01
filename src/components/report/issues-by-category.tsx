@@ -38,8 +38,6 @@ export function IssuesByCategory({
   issuesByCategory,
   initialCategory,
 }: IssuesByCategoryProps) {
-  const defaultCat = initialCategory || categoryScores[0]?.category || "accessibility";
-
   if (categoryScores.length === 0) {
     return (
       <p className="text-base text-muted-foreground text-center py-8">
@@ -48,16 +46,30 @@ export function IssuesByCategory({
     );
   }
 
+  // Sort categories: those with most critical issues first, then by total issue count
+  const sortedScores = [...categoryScores].sort((a, b) => {
+    const aCrit = a.issueCount.critical;
+    const bCrit = b.issueCount.critical;
+    if (aCrit !== bCrit) return bCrit - aCrit;
+    const aTotal = a.issueCount.critical + a.issueCount.warning + a.issueCount.info;
+    const bTotal = b.issueCount.critical + b.issueCount.warning + b.issueCount.info;
+    return bTotal - aTotal;
+  });
+
+  const defaultCat = initialCategory || sortedScores[0]?.category || "accessibility";
+
   return (
     <Tabs defaultValue={defaultCat}>
       <TabsList className="flex-wrap h-auto gap-1 p-1">
-        {categoryScores.map((cs) => {
+        {sortedScores.map((cs) => {
           const totalIssues = cs.issueCount.critical + cs.issueCount.warning + cs.issueCount.info;
           return (
-            <TabsTrigger key={cs.category} value={cs.category} className="text-sm">
+            <TabsTrigger key={cs.category} value={cs.category} className="text-sm gap-1.5">
+              {cs.issueCount.critical > 0 && <span className="size-2 rounded-full bg-red-500" />}
+              {cs.issueCount.critical === 0 && cs.issueCount.warning > 0 && <span className="size-2 rounded-full bg-orange-500" />}
               {categoryLabels[cs.category] ?? cs.category}
               {totalIssues > 0 && (
-                <span className="ml-1 inline-flex items-center justify-center rounded-full bg-muted px-1.5 text-sm tabular-nums">
+                <span className="ml-0.5 inline-flex items-center justify-center rounded-full bg-muted px-1.5 text-sm tabular-nums">
                   {totalIssues}
                 </span>
               )}
@@ -66,7 +78,7 @@ export function IssuesByCategory({
         })}
       </TabsList>
 
-      {categoryScores.map((cs) => {
+      {sortedScores.map((cs) => {
         const issues = (issuesByCategory[cs.category] ?? []).sort(
           (a, b) => (SEVERITY_ORDER[a.severity] ?? 9) - (SEVERITY_ORDER[b.severity] ?? 9)
         );
