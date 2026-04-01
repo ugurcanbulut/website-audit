@@ -5,7 +5,7 @@ import type { ViewportResult, AuditIssue } from "@/lib/types";
 import type { Annotation } from "@/lib/annotations/mapper";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { IssueCard } from "@/components/report/issue-card";
+import { IssueCard, type ElementScreenshotData } from "@/components/report/issue-card";
 import { AnnotationOverlay } from "@/components/report/annotation-overlay";
 import { ScreenshotGallery, ScreenshotThumbnail } from "@/components/report/screenshot-gallery";
 import { Monitor, Tablet, Smartphone, Eye, EyeOff } from "lucide-react";
@@ -93,6 +93,19 @@ export function ViewportTabs({ viewportResults, issues, annotationsByViewport }:
         const annotationNumberByIssueId = new Map<string, number>();
         for (const ann of vpAnnotations) annotationNumberByIssueId.set(ann.issueId, ann.number);
 
+        // Build element screenshot data for each annotated issue
+        const elementScreenshotByIssueId = new Map<string, ElementScreenshotData>();
+        for (const ann of vpAnnotations) {
+          if (ann.rect.width > 0 && ann.rect.height > 0) {
+            elementScreenshotByIssueId.set(ann.issueId, {
+              screenshotPath: vr.screenshotPath,
+              screenshotWidth: vr.screenshotWidth ?? vr.width,
+              screenshotHeight: vr.screenshotHeight ?? vr.height * 6,
+              elementRect: ann.rect,
+            });
+          }
+        }
+
         // Find which annotation corresponds to hovered issue
         const hoveredAnnotationId = hoveredIssueId
           ? vpAnnotations.find(a => a.issueId === hoveredIssueId)?.id ?? null
@@ -151,6 +164,7 @@ export function ViewportTabs({ viewportResults, issues, annotationsByViewport }:
                         issue={issue}
                         annotationNumber={annotationNumberByIssueId.get(issue.id)}
                         isHighlighted={hoveredIssueId === issue.id || selectedAnnotationId === vpAnnotations.find(a => a.issueId === issue.id)?.id}
+                        elementScreenshot={elementScreenshotByIssueId.get(issue.id)}
                       />
                     </div>
                   ))

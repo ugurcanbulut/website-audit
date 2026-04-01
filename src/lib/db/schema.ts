@@ -187,6 +187,8 @@ export const crawlPages = pgTable('crawl_pages', {
   securityHeaders: jsonb('security_headers'),
   errors: jsonb('errors'), // string[]
   crawlDepth: integer('crawl_depth'),
+  contentHash: text('content_hash'),         // simhash for duplicate detection
+  redirectChain: jsonb('redirect_chain'),    // Array of {url, statusCode}
   inlinksCount: integer('inlinks_count'),
   crawledAt: timestamp('crawled_at').defaultNow(),
 });

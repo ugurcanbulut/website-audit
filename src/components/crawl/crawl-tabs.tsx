@@ -8,6 +8,8 @@ import {
   Search,
   Download,
   AlertTriangle,
+  ArrowRight,
+  Copy,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -24,6 +26,8 @@ import {
   TooltipContent,
   TooltipProvider,
 } from "@/components/ui/tooltip";
+
+import { findDuplicateClusters } from "@/lib/crawler/simhash";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -59,6 +63,8 @@ interface CrawlPage {
   errors: string[] | null;
   crawlDepth: number | null;
   inlinksCount: number | null;
+  contentHash: string | null;
+  redirectChain: Array<{ url: string; statusCode: number }> | null;
 }
 
 // The DB returns jsonb columns as `unknown`. Accept either typed or raw data.
@@ -1170,6 +1176,311 @@ function LinksTab({ pages }: { pages: CrawlPage[] }) {
 }
 
 // ---------------------------------------------------------------------------
+// Tab: Redirects
+// ---------------------------------------------------------------------------
+
+interface RedirectRow {
+  id: string;
+  url: string;
+  statusCode: number | null;
+  redirectChain: Array<{ url: string; statusCode: number }>;
+  finalUrl: string;
+  hops: number;
+}
+
+function RedirectsTab({ pages }: { pages: CrawlPage[] }) {
+  const redirectPages: RedirectRow[] = useMemo(() => {
+    return pages
+      .filter((p) => p.redirectChain && p.redirectChain.length > 0)
+      .map((p) => {
+        const chain = p.redirectChain!;
+        return {
+          id: p.id,
+          url: p.url,
+          statusCode: chain[0]?.statusCode ?? p.statusCode,
+          redirectChain: chain,
+          finalUrl: p.redirectUrl ?? p.url,
+          hops: chain.length,
+        };
+      });
+  }, [pages]);
+
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [sortKey, setSortKey] = useState("hops");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
+
+  function toggleSort(key: string) {
+    if (sortKey === key) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortKey(key);
+      setSortDir("asc");
+    }
+  }
+
+  const filtered = useMemo(() => {
+    const q = search.toLowerCase();
+    if (!q) return redirectPages;
+    return redirectPages.filter((p) => p.url.toLowerCase().includes(q));
+  }, [redirectPages, search]);
+
+  const sorted = useMemo(() => {
+    const sortFns: Record<string, (a: RedirectRow, b: RedirectRow) => number> = {
+      url: (a, b) => a.url.localeCompare(b.url),
+      statusCode: (a, b) => (a.statusCode ?? 0) - (b.statusCode ?? 0),
+      hops: (a, b) => a.hops - b.hops,
+      finalUrl: (a, b) => a.finalUrl.localeCompare(b.finalUrl),
+    };
+    const fn = sortFns[sortKey];
+    if (!fn) return filtered;
+    return [...filtered].sort((a, b) => {
+      const cmp = fn(a, b);
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+  }, [filtered, sortKey, sortDir]);
+
+  const handleExport = useCallback(() => {
+    downloadCsv(
+      "crawl-redirects.csv",
+      ["Original URL", "Status Code", "Hops", "Redirect Chain", "Final URL"],
+      sorted.map((row) => [
+        row.url,
+        String(row.statusCode ?? ""),
+        String(row.hops),
+        row.redirectChain.map((r) => `${r.statusCode}:${r.url}`).join(" -> "),
+        row.finalUrl,
+      ])
+    );
+  }, [sorted]);
+
+  const columns = [
+    { key: "url", label: "Original URL", align: "left" as const },
+    { key: "statusCode", label: "Status", align: "left" as const },
+    { key: "hops", label: "Hops", align: "right" as const },
+    { key: "finalUrl", label: "Final URL", align: "left" as const },
+    { key: "expand", label: "Chain", align: "left" as const },
+  ];
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Filter by URL..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-8"
+          />
+        </div>
+        <Button variant="outline" size="sm" onClick={handleExport}>
+          <Download className="size-3.5 mr-1.5" />
+          Export CSV
+        </Button>
+      </div>
+
+      {redirectPages.length === 0 ? (
+        <div className="rounded-lg border p-8 text-center text-muted-foreground">
+          No redirect chains detected.
+        </div>
+      ) : (
+        <div className="rounded-lg border overflow-hidden">
+          <div className="max-h-[600px] overflow-auto">
+            <TooltipProvider>
+              <table className="w-full text-base">
+                <thead className="sticky top-0 z-10 bg-muted/95 backdrop-blur-sm">
+                  <tr className="border-b">
+                    {columns.map((col) => (
+                      <SortHeader
+                        key={col.key}
+                        label={col.label}
+                        isActive={sortKey === col.key}
+                        sortDir={sortDir}
+                        align={col.align}
+                        onClick={() => toggleSort(col.key)}
+                      />
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {sorted.map((row) => (
+                    <Fragment key={row.id}>
+                      <tr className="border-b hover:bg-muted/30 transition-colors">
+                        <td className="px-3 py-2 max-w-[260px]">
+                          <UrlCell url={row.url} />
+                        </td>
+                        <td className="px-3 py-2">
+                          <StatusBadge code={row.statusCode} />
+                        </td>
+                        <td className="px-3 py-2 text-right tabular-nums">
+                          <span className={row.hops > 1 ? "text-amber-600 dark:text-amber-400 font-medium" : ""}>
+                            {row.hops}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2 max-w-[260px]">
+                          <UrlCell url={row.finalUrl} />
+                        </td>
+                        <td className="px-3 py-2">
+                          <button
+                            type="button"
+                            onClick={() => setExpandedId(expandedId === row.id ? null : row.id)}
+                            className="text-sm text-primary hover:underline"
+                          >
+                            {expandedId === row.id ? "Hide" : "Show"} chain
+                          </button>
+                        </td>
+                      </tr>
+                      {expandedId === row.id && (
+                        <tr className="border-b bg-muted/20">
+                          <td colSpan={columns.length} className="px-6 py-3">
+                            <div className="flex flex-wrap items-center gap-2 text-sm">
+                              <span className="font-mono text-xs bg-muted px-2 py-1 rounded">
+                                {urlPath(row.url)}
+                              </span>
+                              {row.redirectChain.map((hop, i) => (
+                                <Fragment key={i}>
+                                  <span className="flex items-center gap-1 text-muted-foreground">
+                                    <ArrowRight className="size-3" />
+                                    <Badge variant="secondary" className="text-[10px] font-mono">
+                                      {hop.statusCode}
+                                    </Badge>
+                                  </span>
+                                  <span className="font-mono text-xs bg-muted px-2 py-1 rounded">
+                                    {urlPath(hop.url)}
+                                  </span>
+                                </Fragment>
+                              ))}
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </Fragment>
+                  ))}
+                  {sorted.length === 0 && (
+                    <tr>
+                      <td colSpan={columns.length} className="px-3 py-8 text-center text-muted-foreground">
+                        No results found.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </TooltipProvider>
+          </div>
+        </div>
+      )}
+
+      <p className="text-sm text-muted-foreground">
+        {redirectPages.length} page{redirectPages.length !== 1 ? "s" : ""} with redirect chains
+        {search && ` (showing ${sorted.length} filtered)`}
+      </p>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Tab: Duplicates
+// ---------------------------------------------------------------------------
+
+function DuplicatesTab({ pages }: { pages: CrawlPage[] }) {
+  const clusters = useMemo(() => {
+    const hashPages = pages
+      .filter((p) => p.contentHash)
+      .map((p) => ({ url: p.url, hash: p.contentHash! }));
+    return findDuplicateClusters(hashPages);
+  }, [pages]);
+
+  const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
+
+  const handleExport = useCallback(() => {
+    downloadCsv(
+      "crawl-duplicates.csv",
+      ["Cluster", "Similarity %", "URLs"],
+      clusters.map((c, i) => [
+        String(i + 1),
+        String(c.similarity),
+        c.urls.join(" | "),
+      ])
+    );
+  }, [clusters]);
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">
+          {clusters.length} duplicate cluster{clusters.length !== 1 ? "s" : ""} detected
+          {" "}({clusters.reduce((sum, c) => sum + c.urls.length, 0)} pages total)
+        </p>
+        {clusters.length > 0 && (
+          <Button variant="outline" size="sm" onClick={handleExport}>
+            <Download className="size-3.5 mr-1.5" />
+            Export CSV
+          </Button>
+        )}
+      </div>
+
+      {clusters.length === 0 ? (
+        <div className="rounded-lg border p-8 text-center text-muted-foreground">
+          No near-duplicate content detected.
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {clusters.map((cluster, idx) => (
+            <div key={idx} className="rounded-lg border overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setExpandedIdx(expandedIdx === idx ? null : idx)}
+                className="w-full flex items-center justify-between px-4 py-3 bg-muted/30 hover:bg-muted/50 transition-colors text-left"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-1.5">
+                    <Copy className="size-4 text-amber-600 dark:text-amber-400" />
+                    <span className="font-medium">
+                      Cluster {idx + 1}
+                    </span>
+                  </div>
+                  <Badge variant="secondary">
+                    {cluster.urls.length} pages
+                  </Badge>
+                  <Badge variant="outline" className="font-mono text-[11px]">
+                    {cluster.similarity}% similar
+                  </Badge>
+                </div>
+                {expandedIdx === idx ? (
+                  <ChevronUp className="size-4 text-muted-foreground" />
+                ) : (
+                  <ChevronDown className="size-4 text-muted-foreground" />
+                )}
+              </button>
+              {expandedIdx === idx && (
+                <div className="px-4 py-3 space-y-1 border-t">
+                  <TooltipProvider>
+                    {cluster.urls.map((url, i) => (
+                      <div key={i} className="flex items-center gap-2 py-1 text-sm">
+                        <span className="text-muted-foreground font-mono text-xs w-6 shrink-0">
+                          {i + 1}.
+                        </span>
+                        <Tooltip>
+                          <TooltipTrigger className="truncate block text-left">
+                            {urlPath(url)}
+                          </TooltipTrigger>
+                          <TooltipContent>{url}</TooltipContent>
+                        </Tooltip>
+                      </div>
+                    ))}
+                  </TooltipProvider>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main Tabbed Component
 // ---------------------------------------------------------------------------
 
@@ -1181,6 +1492,8 @@ const TAB_ITEMS = [
   { value: "headings", label: "Headings" },
   { value: "images", label: "Images" },
   { value: "links", label: "Links" },
+  { value: "redirects", label: "Redirects" },
+  { value: "duplicates", label: "Duplicates" },
 ] as const;
 
 export function CrawlTabs({ pages }: CrawlTabsProps) {
@@ -1198,6 +1511,9 @@ export function CrawlTabs({ pages }: CrawlTabsProps) {
         images: (p.images as CrawlPage["images"]) ?? null,
         structuredData: (p.structuredData as unknown[] | null) ?? null,
         errors: (p.errors as string[] | null) ?? null,
+        contentHash: (p.contentHash as string | null) ?? null,
+        redirectChain:
+          (p.redirectChain as CrawlPage["redirectChain"]) ?? null,
       })),
     [pages]
   );
@@ -1234,6 +1550,12 @@ export function CrawlTabs({ pages }: CrawlTabsProps) {
       </TabsContent>
       <TabsContent value="links">
         <LinksTab pages={typedPages} />
+      </TabsContent>
+      <TabsContent value="redirects">
+        <RedirectsTab pages={typedPages} />
+      </TabsContent>
+      <TabsContent value="duplicates">
+        <DuplicatesTab pages={typedPages} />
       </TabsContent>
     </Tabs>
   );

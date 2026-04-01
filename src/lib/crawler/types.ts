@@ -38,6 +38,8 @@ export interface PageData {
   hreflang: HreflangData[];
   securityHeaders: Record<string, string>;
   errors: string[];
+  contentHash?: string;
+  redirectChain?: Array<{ url: string; statusCode: number }>;
 }
 
 export interface LinkData {

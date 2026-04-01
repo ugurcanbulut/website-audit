@@ -1,5 +1,6 @@
 import type { Page } from "playwright";
 import type { PageData, LinkData, ImageData, HreflangData } from "./types";
+import { simhash } from "./simhash";
 
 export async function extractPageData(
   page: Page,
@@ -106,6 +107,13 @@ export async function extractPageData(
     };
   }, seedOrigin);
 
+  // Compute simhash for near-duplicate content detection
+  let contentHash: string | undefined;
+  try {
+    const bodyText = await page.evaluate(() => document.body?.innerText ?? "");
+    contentHash = simhash(bodyText);
+  } catch { /* skip hash on failure */ }
+
   return {
     url,
     statusCode,
@@ -128,5 +136,6 @@ export async function extractPageData(
     hreflang: data.hreflang as HreflangData[],
     securityHeaders: responseHeaders ?? {},
     errors: [],
+    contentHash,
   };
 }

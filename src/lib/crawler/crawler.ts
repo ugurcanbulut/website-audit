@@ -130,6 +130,8 @@ export async function runCrawl(crawlId: string): Promise<void> {
           ogTags: pageData.ogTags,
           hreflang: pageData.hreflang,
           securityHeaders: pageData.securityHeaders,
+          contentHash: pageData.contentHash ?? null,
+          redirectChain: pageData.redirectChain ?? null,
           errors: pageData.errors,
           crawlDepth: depth,
         });
@@ -216,6 +218,15 @@ async function crawlPage(
   const page = await context.newPage();
 
   try {
+    // Track full redirect chain
+    const redirectChain: Array<{ url: string; statusCode: number }> = [];
+    page.on("response", (response) => {
+      const status = response.status();
+      if (status >= 300 && status < 400) {
+        redirectChain.push({ url: response.url(), statusCode: status });
+      }
+    });
+
     const startTime = Date.now();
     const response = await page.goto(url, {
       waitUntil: "domcontentloaded",
@@ -245,7 +256,10 @@ async function crawlPage(
       Object.fromEntries(Object.entries(headers).map(([k, v]) => [k.toLowerCase(), v]))
     );
 
-    return pageData;
+    return {
+      ...pageData,
+      redirectChain: redirectChain.length > 0 ? redirectChain : undefined,
+    };
   } finally {
     await context.close();
   }

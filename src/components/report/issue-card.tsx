@@ -7,6 +7,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { AlertTriangle, AlertCircle, Info } from "lucide-react";
+import { ElementScreenshot } from "@/components/report/element-screenshot";
 
 const severityConfig: Record<
   string,
@@ -38,13 +39,21 @@ const severityConfig: Record<
   },
 };
 
+export interface ElementScreenshotData {
+  screenshotPath: string;
+  screenshotWidth: number;
+  screenshotHeight: number;
+  elementRect: { x: number; y: number; width: number; height: number };
+}
+
 interface IssueCardProps {
   issue: AuditIssue;
   annotationNumber?: number;
   isHighlighted?: boolean;
+  elementScreenshot?: ElementScreenshotData;
 }
 
-export function IssueCard({ issue, annotationNumber, isHighlighted }: IssueCardProps) {
+export function IssueCard({ issue, annotationNumber, isHighlighted, elementScreenshot }: IssueCardProps) {
   const config = severityConfig[issue.severity] ?? severityConfig.info;
   const Icon = config.icon;
   const viewportName =
@@ -110,6 +119,15 @@ export function IssueCard({ issue, annotationNumber, isHighlighted }: IssueCardP
               {issue.elementSelector}
             </code>
           </div>
+        )}
+
+        {elementScreenshot && (
+          <ElementScreenshot
+            screenshotPath={elementScreenshot.screenshotPath}
+            screenshotWidth={elementScreenshot.screenshotWidth}
+            screenshotHeight={elementScreenshot.screenshotHeight}
+            elementRect={elementScreenshot.elementRect}
+          />
         )}
 
         {issue.recommendation && (
