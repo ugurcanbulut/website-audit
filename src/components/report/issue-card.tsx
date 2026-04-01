@@ -122,6 +122,31 @@ export function IssueCard({ issue, annotationNumber, isHighlighted }: IssueCardP
             </p>
           </div>
         )}
+
+        {/* Code fix (from AI analysis) */}
+        {(() => {
+          const cf = issue.details?.codeFix;
+          if (!cf || typeof cf !== "object") return null;
+          const fix = cf as { before?: string; after?: string; language?: string };
+          if (!fix.before || !fix.after) return null;
+          return (
+            <div className="rounded-md border overflow-hidden">
+              <div className="px-3 py-1.5 bg-muted text-sm font-medium border-b">
+                Suggested Fix ({fix.language ?? "html"})
+              </div>
+              <div className="grid grid-cols-2 divide-x text-sm font-mono">
+                <div className="p-2 bg-red-50/50 dark:bg-red-950/20">
+                  <p className="text-sm text-red-600 dark:text-red-400 mb-1 font-sans font-medium">Before</p>
+                  <pre className="whitespace-pre-wrap break-all text-sm">{fix.before}</pre>
+                </div>
+                <div className="p-2 bg-green-50/50 dark:bg-green-950/20">
+                  <p className="text-sm text-green-600 dark:text-green-400 mb-1 font-sans font-medium">After</p>
+                  <pre className="whitespace-pre-wrap break-all text-sm">{fix.after}</pre>
+                </div>
+              </div>
+            </div>
+          );
+        })()}
       </CardContent>
     </Card>
   );

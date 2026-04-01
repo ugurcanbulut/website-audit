@@ -34,6 +34,7 @@ const navMain = [
 
 const navCrawler = [
   { title: "New Crawl", url: "/crawl/new", icon: Globe },
+  { title: "Crawl History", url: "/history?tab=crawls", icon: History },
 ]
 
 const navSecondary = [
@@ -86,17 +87,20 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <SidebarGroupLabel>SEO Crawler</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {navCrawler.map((item) => (
-                <SidebarMenuItem key={item.title}>
-                  <SidebarMenuButton
-                    render={<Link href={item.url} />}
-                    isActive={pathname === item.url || pathname.startsWith("/crawl/")}
-                  >
-                    <item.icon className="size-4" />
-                    <span>{item.title}</span>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+              {navCrawler.map((item) => {
+                const urlPath = item.url.split("?")[0]
+                return (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton
+                      render={<Link href={item.url} />}
+                      isActive={pathname === urlPath || pathname.startsWith("/crawl/")}
+                    >
+                      <item.icon className="size-4" />
+                      <span>{item.title}</span>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                )
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

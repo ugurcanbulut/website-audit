@@ -131,6 +131,7 @@ export async function runCrawl(crawlId: string): Promise<void> {
           hreflang: pageData.hreflang,
           securityHeaders: pageData.securityHeaders,
           errors: pageData.errors,
+          crawlDepth: depth,
         });
 
         pagesCrawled++;
@@ -164,6 +165,22 @@ export async function runCrawl(crawlId: string): Promise<void> {
       // Rate limiting
       if (crawlDelay > 0) {
         await new Promise(resolve => setTimeout(resolve, crawlDelay));
+      }
+    }
+
+    // Calculate inlinks count for each page
+    const allPages = await db.query.crawlPages.findMany({ where: eq(crawlPages.crawlId, crawlId) });
+    const inlinksMap = new Map<string, number>();
+    for (const p of allPages) {
+      const links = (p.internalLinks as Array<{href: string}>) ?? [];
+      for (const link of links) {
+        inlinksMap.set(link.href, (inlinksMap.get(link.href) ?? 0) + 1);
+      }
+    }
+    for (const p of allPages) {
+      const count = inlinksMap.get(p.url) ?? 0;
+      if (count > 0) {
+        await db.update(crawlPages).set({ inlinksCount: count }).where(eq(crawlPages.id, p.id));
       }
     }
 

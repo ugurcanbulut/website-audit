@@ -186,6 +186,8 @@ export const crawlPages = pgTable('crawl_pages', {
   hreflang: jsonb('hreflang'),
   securityHeaders: jsonb('security_headers'),
   errors: jsonb('errors'), // string[]
+  crawlDepth: integer('crawl_depth'),
+  inlinksCount: integer('inlinks_count'),
   crawledAt: timestamp('crawled_at').defaultNow(),
 });
 

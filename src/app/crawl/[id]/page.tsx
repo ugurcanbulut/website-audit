@@ -18,7 +18,7 @@ import {
   ProgressValue,
 } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { CrawlResultsTable } from "@/components/crawl/crawl-results-table";
+import { CrawlTabs } from "@/components/crawl/crawl-tabs";
 import { CrawlAutoRefresh } from "@/components/crawl/crawl-auto-refresh";
 
 export const dynamic = "force-dynamic";
@@ -114,7 +114,7 @@ export default async function CrawlPage({ params }: CrawlPageProps) {
                 className={buttonVariants({ variant: "outline", size: "sm" })}
               >
                 <Download className="h-4 w-4 mr-1.5" />
-                Export CSV
+                Full Export
               </a>
             )}
           </div>
@@ -182,7 +182,7 @@ export default async function CrawlPage({ params }: CrawlPageProps) {
 
         {/* Results table */}
         {pages.length > 0 ? (
-          <CrawlResultsTable pages={pages} />
+          <CrawlTabs pages={pages} />
         ) : (
           <Card>
             <CardContent className="py-12 text-center text-muted-foreground">
