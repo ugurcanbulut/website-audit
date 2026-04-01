@@ -225,9 +225,9 @@ function ScansTable({ scans }: { scans: Scan[] }) {
             <tr className="border-b text-muted-foreground">
               <th className="pb-2 pr-4 text-left font-medium">Site</th>
               <th className="pb-2 pr-4 text-left font-medium">Status</th>
-              <th className="pb-2 pr-4 text-left font-medium">Score</th>
-              <th className="pb-2 pr-4 text-left font-medium">Engine</th>
-              <th className="pb-2 pr-4 text-left font-medium">Date</th>
+              <th className="pb-2 pr-4 text-left font-medium hidden sm:table-cell">Score</th>
+              <th className="pb-2 pr-4 text-left font-medium hidden sm:table-cell">Engine</th>
+              <th className="pb-2 pr-4 text-left font-medium hidden sm:table-cell">Date</th>
               <th className="pb-2 text-right font-medium" />
             </tr>
           </thead>
@@ -254,7 +254,7 @@ function ScansTable({ scans }: { scans: Scan[] }) {
                       {config.label}
                     </Badge>
                   </td>
-                  <td className="py-3 pr-4">
+                  <td className="py-3 pr-4 hidden sm:table-cell">
                     {scan.status === "completed" &&
                     scan.overallScore !== null ? (
                       <div className="flex items-center gap-1.5">
@@ -276,10 +276,10 @@ function ScansTable({ scans }: { scans: Scan[] }) {
                       <span className="text-muted-foreground">--</span>
                     )}
                   </td>
-                  <td className="py-3 pr-4 capitalize text-muted-foreground">
+                  <td className="py-3 pr-4 capitalize text-muted-foreground hidden sm:table-cell">
                     {scan.browserEngine ?? "--"}
                   </td>
-                  <td className="py-3 pr-4 whitespace-nowrap text-muted-foreground">
+                  <td className="py-3 pr-4 whitespace-nowrap text-muted-foreground hidden sm:table-cell">
                     {formatDate(scan.createdAt)}
                   </td>
                   <td className="py-3 text-right">
@@ -341,8 +341,8 @@ function BatchesTable({ batches }: { batches: Batch[] }) {
               <th className="pb-2 pr-4 text-left font-medium">Name</th>
               <th className="pb-2 pr-4 text-left font-medium">URLs</th>
               <th className="pb-2 pr-4 text-left font-medium">Status</th>
-              <th className="pb-2 pr-4 text-left font-medium">Avg Score</th>
-              <th className="pb-2 pr-4 text-left font-medium">Date</th>
+              <th className="pb-2 pr-4 text-left font-medium hidden sm:table-cell">Avg Score</th>
+              <th className="pb-2 pr-4 text-left font-medium hidden sm:table-cell">Date</th>
               <th className="pb-2 text-right font-medium" />
             </tr>
           </thead>
@@ -373,7 +373,7 @@ function BatchesTable({ batches }: { batches: Batch[] }) {
                       {config.label}
                     </Badge>
                   </td>
-                  <td className="py-3 pr-4">
+                  <td className="py-3 pr-4 hidden sm:table-cell">
                     {batch.status === "completed" &&
                     batch.overallScore !== null ? (
                       <div className="flex items-center gap-1.5">
@@ -395,7 +395,7 @@ function BatchesTable({ batches }: { batches: Batch[] }) {
                       <span className="text-muted-foreground">--</span>
                     )}
                   </td>
-                  <td className="py-3 pr-4 whitespace-nowrap text-muted-foreground">
+                  <td className="py-3 pr-4 whitespace-nowrap text-muted-foreground hidden sm:table-cell">
                     {formatDate(batch.createdAt)}
                   </td>
                   <td className="py-3 text-right">
@@ -453,10 +453,10 @@ function CrawlsTable({ crawls }: { crawls: Crawl[] }) {
             <tr className="border-b text-muted-foreground">
               <th className="pb-2 pr-4 text-left font-medium">Seed URL</th>
               <th className="pb-2 pr-4 text-left font-medium">Status</th>
-              <th className="pb-2 pr-4 text-left font-medium">
+              <th className="pb-2 pr-4 text-left font-medium hidden sm:table-cell">
                 Pages Crawled
               </th>
-              <th className="pb-2 pr-4 text-left font-medium">Date</th>
+              <th className="pb-2 pr-4 text-left font-medium hidden sm:table-cell">Date</th>
               <th className="pb-2 text-right font-medium" />
             </tr>
           </thead>
@@ -484,13 +484,13 @@ function CrawlsTable({ crawls }: { crawls: Crawl[] }) {
                       {config.label}
                     </Badge>
                   </td>
-                  <td className="py-3 pr-4 tabular-nums">
+                  <td className="py-3 pr-4 tabular-nums hidden sm:table-cell">
                     {crawl.pagesCrawled ?? 0}
                     {crawl.totalPages
                       ? ` / ${crawl.totalPages}`
                       : ""}
                   </td>
-                  <td className="py-3 pr-4 whitespace-nowrap text-muted-foreground">
+                  <td className="py-3 pr-4 whitespace-nowrap text-muted-foreground hidden sm:table-cell">
                     {formatDate(crawl.createdAt)}
                   </td>
                   <td className="py-3 text-right">

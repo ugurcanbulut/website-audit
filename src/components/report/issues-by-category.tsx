@@ -25,9 +25,10 @@ export function IssuesByCategory({
 }: IssuesByCategoryProps) {
   if (categoryScores.length === 0) {
     return (
-      <p className="text-base text-muted-foreground text-center py-8">
-        No category scores available.
-      </p>
+      <div className="flex flex-col items-center py-12 text-center">
+        <p className="text-base text-muted-foreground mb-2">No audit results yet.</p>
+        <p className="text-sm text-muted-foreground">Issues will appear here once the audit engine completes.</p>
+      </div>
     );
   }
 

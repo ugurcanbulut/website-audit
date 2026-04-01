@@ -138,6 +138,12 @@
   p { line-height: 1.7; }
 }
 
+/* Micro-interactions */
+button:not(:disabled):active,
+[role="button"]:not(:disabled):active {
+  transform: scale(0.98);
+}
+
 /* PhotoSwipe: respect full-page screenshot aspect ratio */
 .pswp__img {
   object-fit: contain !important;

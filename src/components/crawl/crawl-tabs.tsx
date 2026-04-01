@@ -304,7 +304,7 @@ function DataTable<T extends { id: string; url: string }>({
       </div>
 
       <div className="rounded-lg border overflow-hidden">
-        <div className="max-h-[600px] overflow-auto">
+        <div className="max-h-[400px] md:max-h-[600px] overflow-auto">
           <TooltipProvider>
             <table className="w-full text-base">
               <thead className="sticky top-0 z-10 bg-muted/95 backdrop-blur-sm">
@@ -1004,7 +1004,7 @@ function ImagesTab({ pages }: { pages: CrawlPage[] }) {
       </div>
 
       <div className="rounded-lg border overflow-hidden">
-        <div className="max-h-[600px] overflow-auto">
+        <div className="max-h-[400px] md:max-h-[600px] overflow-auto">
           <TooltipProvider>
             <table className="w-full text-base">
               <thead className="sticky top-0 z-10 bg-muted/95 backdrop-blur-sm">
@@ -1286,7 +1286,7 @@ function RedirectsTab({ pages }: { pages: CrawlPage[] }) {
         </div>
       ) : (
         <div className="rounded-lg border overflow-hidden">
-          <div className="max-h-[600px] overflow-auto">
+          <div className="max-h-[400px] md:max-h-[600px] overflow-auto">
             <TooltipProvider>
               <table className="w-full text-base">
                 <thead className="sticky top-0 z-10 bg-muted/95 backdrop-blur-sm">
@@ -1547,34 +1547,54 @@ export function CrawlTabs({ pages }: CrawlTabsProps) {
       </div>
 
       <TabsContent value="all">
-        <AllPagesTab pages={typedPages} />
+        <div className="animate-in fade-in-0 duration-200">
+          <AllPagesTab pages={typedPages} />
+        </div>
       </TabsContent>
       <TabsContent value="response-codes">
-        <ResponseCodesTab pages={typedPages} />
+        <div className="animate-in fade-in-0 duration-200">
+          <ResponseCodesTab pages={typedPages} />
+        </div>
       </TabsContent>
       <TabsContent value="titles">
-        <PageTitlesTab pages={typedPages} />
+        <div className="animate-in fade-in-0 duration-200">
+          <PageTitlesTab pages={typedPages} />
+        </div>
       </TabsContent>
       <TabsContent value="meta">
-        <MetaDescriptionsTab pages={typedPages} />
+        <div className="animate-in fade-in-0 duration-200">
+          <MetaDescriptionsTab pages={typedPages} />
+        </div>
       </TabsContent>
       <TabsContent value="headings">
-        <HeadingsTab pages={typedPages} />
+        <div className="animate-in fade-in-0 duration-200">
+          <HeadingsTab pages={typedPages} />
+        </div>
       </TabsContent>
       <TabsContent value="images">
-        <ImagesTab pages={typedPages} />
+        <div className="animate-in fade-in-0 duration-200">
+          <ImagesTab pages={typedPages} />
+        </div>
       </TabsContent>
       <TabsContent value="links">
-        <LinksTab pages={typedPages} />
+        <div className="animate-in fade-in-0 duration-200">
+          <LinksTab pages={typedPages} />
+        </div>
       </TabsContent>
       <TabsContent value="redirects">
-        <RedirectsTab pages={typedPages} />
+        <div className="animate-in fade-in-0 duration-200">
+          <RedirectsTab pages={typedPages} />
+        </div>
       </TabsContent>
       <TabsContent value="duplicates">
-        <DuplicatesTab pages={typedPages} />
+        <div className="animate-in fade-in-0 duration-200">
+          <DuplicatesTab pages={typedPages} />
+        </div>
       </TabsContent>
       <TabsContent value="tree">
-        <SiteTree tree={siteTree} />
+        <div className="animate-in fade-in-0 duration-200">
+          <SiteTree tree={siteTree} />
+        </div>
       </TabsContent>
     </Tabs>
   );

@@ -115,8 +115,8 @@ export function RecentScans({ scans }: RecentScansProps) {
               <tr className="border-b text-muted-foreground">
                 <th className="pb-2 pr-4 text-left font-medium">Site</th>
                 <th className="pb-2 pr-4 text-left font-medium">Status</th>
-                <th className="pb-2 pr-4 text-left font-medium">Score</th>
-                <th className="pb-2 text-left font-medium">Date</th>
+                <th className="pb-2 pr-4 text-left font-medium hidden sm:table-cell">Score</th>
+                <th className="pb-2 text-left font-medium hidden sm:table-cell">Date</th>
                 <th className="pb-2 text-right font-medium"></th>
               </tr>
             </thead>
@@ -142,7 +142,7 @@ export function RecentScans({ scans }: RecentScansProps) {
                         {config.label}
                       </Badge>
                     </td>
-                    <td className="py-3 pr-4">
+                    <td className="py-3 pr-4 hidden sm:table-cell">
                       {scan.status === "completed" && scan.overallScore !== null ? (
                         <div className="flex items-center gap-1.5">
                           <span className="tabular-nums font-medium">
@@ -163,7 +163,7 @@ export function RecentScans({ scans }: RecentScansProps) {
                         <span className="text-muted-foreground">--</span>
                       )}
                     </td>
-                    <td className="py-3 whitespace-nowrap text-muted-foreground">
+                    <td className="py-3 whitespace-nowrap text-muted-foreground hidden sm:table-cell">
                       {formatDate(scan.createdAt)}
                     </td>
                     <td className="py-3 text-right">

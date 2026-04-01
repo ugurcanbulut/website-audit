@@ -29,21 +29,21 @@ export function ReportTabs({
       </TabsList>
 
       <TabsContent value="overview">
-        <div className="mt-6">{overviewContent}</div>
+        <div className="mt-6 animate-in fade-in-0 duration-200">{overviewContent}</div>
       </TabsContent>
       <TabsContent value="issues">
-        <div className="mt-6">{issuesContent}</div>
+        <div className="mt-6 animate-in fade-in-0 duration-200">{issuesContent}</div>
       </TabsContent>
       {lighthouseContent && (
         <TabsContent value="lighthouse">
-          <div className="mt-6">{lighthouseContent}</div>
+          <div className="mt-6 animate-in fade-in-0 duration-200">{lighthouseContent}</div>
         </TabsContent>
       )}
       <TabsContent value="screenshots">
-        <div className="mt-6">{screenshotsContent}</div>
+        <div className="mt-6 animate-in fade-in-0 duration-200">{screenshotsContent}</div>
       </TabsContent>
       <TabsContent value="viewports">
-        <div className="mt-6">{viewportContent}</div>
+        <div className="mt-6 animate-in fade-in-0 duration-200">{viewportContent}</div>
       </TabsContent>
     </Tabs>
   );

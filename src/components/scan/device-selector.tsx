@@ -73,7 +73,7 @@ export function DeviceSelector({ selected, onChange }: DeviceSelectorProps) {
               <Icon className="size-4 text-muted-foreground" />
               <span className="text-base font-medium">{typeLabels[type]}</span>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
               {devices.map((device) => {
                 const isSelected = selected.includes(device.name);
                 return (

@@ -217,7 +217,7 @@ function LhrView({ lhr }: { lhr: Record<string, unknown> }) {
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-8 max-w-5xl mx-auto">
       {/* Scores */}
       <div className="flex items-center justify-center gap-8 flex-wrap py-4">
         {scores.map((s) => (
@@ -229,7 +229,7 @@ function LhrView({ lhr }: { lhr: Record<string, unknown> }) {
       {categories.performance && (
         <div>
           <h3 className="text-lg font-semibold mb-3">Metrics</h3>
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
             {metricIds.map((id) => {
               const audit = audits[id];
               if (!audit) return null;
@@ -305,7 +305,12 @@ export function LighthouseReport({ desktopLhr, mobileLhr }: LighthouseReportProp
   const hasMobile = !!mobileLhr;
 
   if (!hasDesktop && !hasMobile) {
-    return <p className="text-base text-muted-foreground text-center py-8">No Lighthouse data available. Lighthouse requires Chromium browser engine.</p>;
+    return (
+      <div className="flex flex-col items-center py-12 text-center">
+        <p className="text-base text-muted-foreground mb-2">No Lighthouse data available.</p>
+        <p className="text-sm text-muted-foreground">Lighthouse requires the Chromium browser engine. Change the browser setting in your next scan to enable Performance, SEO, and Best Practices audits.</p>
+      </div>
+    );
   }
 
   if (hasDesktop && hasMobile) {

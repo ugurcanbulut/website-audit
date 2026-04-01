@@ -282,7 +282,10 @@ export default async function ScanDetailPage({ params }: ScanDetailPageProps) {
       ]} />
       <div className="flex flex-1 flex-col gap-4 p-4 lg:p-6">
         <div className="flex items-start justify-between gap-4">
-          <p className="text-muted-foreground break-all">{scan.url}</p>
+          <div>
+            <span className="text-sm text-muted-foreground">Scanned URL</span>
+            <p className="text-base break-words">{scan.url}</p>
+          </div>
           <div className="flex items-center gap-2 shrink-0">
             <a
               href={`/api/scans/${id}/pdf`}

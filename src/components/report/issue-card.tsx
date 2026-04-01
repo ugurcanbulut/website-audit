@@ -112,14 +112,14 @@ export function IssueCard({ issue, annotationNumber, isHighlighted, elementScree
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
-        <p className="text-base text-muted-foreground">{issue.description}</p>
+        <p className="text-sm text-muted-foreground">{issue.description}</p>
 
         {issue.elementSelector && (
           <div className="rounded-md bg-muted px-3 py-2">
             <p className="text-sm text-muted-foreground mb-1">
               Element selector
             </p>
-            <code className="text-sm font-mono break-all">
+            <code className="text-sm font-mono break-words">
               {issue.elementSelector}
             </code>
           </div>
@@ -164,11 +164,11 @@ export function IssueCard({ issue, annotationNumber, isHighlighted, elementScree
               <div className="grid grid-cols-2 divide-x text-sm font-mono">
                 <div className="p-2 bg-red-50/50 dark:bg-red-950/20">
                   <p className="text-sm text-red-600 dark:text-red-400 mb-1 font-sans font-medium">Before</p>
-                  <pre className="whitespace-pre-wrap break-all text-sm">{fix.before}</pre>
+                  <pre className="whitespace-pre-wrap break-words text-sm">{fix.before}</pre>
                 </div>
                 <div className="p-2 bg-green-50/50 dark:bg-green-950/20">
                   <p className="text-sm text-green-600 dark:text-green-400 mb-1 font-sans font-medium">After</p>
-                  <pre className="whitespace-pre-wrap break-all text-sm">{fix.after}</pre>
+                  <pre className="whitespace-pre-wrap break-words text-sm">{fix.after}</pre>
                 </div>
               </div>
             </div>

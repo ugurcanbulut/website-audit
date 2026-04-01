@@ -181,7 +181,7 @@ export function CrawlCompare({ crawls }: CrawlCompareProps) {
       {result && (
         <>
           {/* Summary */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <Card>
               <CardContent className="pt-4 text-center">
                 <p className="text-3xl font-bold text-green-600 dark:text-green-400 tabular-nums">
@@ -296,7 +296,7 @@ export function CrawlCompare({ crawls }: CrawlCompareProps) {
                         {changes.map((c, i) => (
                           <div
                             key={i}
-                            className="grid grid-cols-[120px_1fr_auto_1fr] gap-2 items-center text-sm"
+                            className="grid grid-cols-1 sm:grid-cols-[120px_1fr_auto_1fr] gap-2 items-center text-sm"
                           >
                             <span className="font-medium text-muted-foreground">
                               {c.field}

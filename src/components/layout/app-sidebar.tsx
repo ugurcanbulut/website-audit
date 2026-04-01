@@ -41,7 +41,7 @@ const navCrawler = [
 
 const navSecondary = [
   { title: "Settings", url: "/settings", icon: Settings },
-  { title: "Help", url: "#", icon: HelpCircle },
+  { title: "Help", url: "https://github.com/ugurcanbulut/website-audit", icon: HelpCircle },
 ]
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
@@ -112,8 +112,14 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               {navSecondary.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton
-                    render={<Link href={item.url} />}
-                    isActive={pathname === item.url}
+                    render={
+                      item.url.startsWith("http") ? (
+                        <a href={item.url} target="_blank" rel="noopener noreferrer" />
+                      ) : (
+                        <Link href={item.url} />
+                      )
+                    }
+                    isActive={!item.url.startsWith("http") && pathname === item.url}
                   >
                     <item.icon className="size-4" />
                     <span>{item.title}</span>

@@ -8,7 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { IssueCard, type ElementScreenshotData } from "@/components/report/issue-card";
 import { AnnotationOverlay } from "@/components/report/annotation-overlay";
 import { ScreenshotGallery, ScreenshotThumbnail } from "@/components/report/screenshot-gallery";
-import { Monitor, Tablet, Smartphone, Eye, EyeOff } from "lucide-react";
+import { Monitor, Tablet, Smartphone, Eye, EyeOff, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 function getDeviceIcon(width: number) {
@@ -30,7 +30,12 @@ export function ViewportTabs({ viewportResults, issues, annotationsByViewport }:
   const issueRefs = useRef<Map<string, HTMLDivElement>>(new Map());
 
   if (viewportResults.length === 0) {
-    return <p className="text-base text-muted-foreground text-center py-8">No viewport results available.</p>;
+    return (
+      <div className="flex flex-col items-center py-12 text-center">
+        <p className="text-base text-muted-foreground mb-2">No viewport results available.</p>
+        <p className="text-sm text-muted-foreground">Results will appear here once the scan completes.</p>
+      </div>
+    );
   }
 
   // Build issue maps
@@ -119,7 +124,7 @@ export function ViewportTabs({ viewportResults, issues, annotationsByViewport }:
 
         return (
           <TabsContent key={vr.viewportName} value={vr.viewportName}>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* LEFT: Annotated Screenshot */}
               <div className="rounded-lg border bg-muted/30 overflow-hidden">
                 <div className="px-3 py-2 border-b bg-card flex items-center justify-between">
@@ -128,7 +133,7 @@ export function ViewportTabs({ viewportResults, issues, annotationsByViewport }:
                   </p>
                 </div>
                 <ScreenshotGallery galleryId={`vp-split-${vr.viewportName.replace(/\s+/g, "-")}`}>
-                  <div className="relative max-h-[700px] overflow-y-auto">
+                  <div className="relative max-h-[700px] overflow-y-auto overflow-x-hidden">
                     <ScreenshotThumbnail
                       src={vr.screenshotPath}
                       alt={`Screenshot at ${vr.viewportName}`}
@@ -155,9 +160,11 @@ export function ViewportTabs({ viewportResults, issues, annotationsByViewport }:
                   Issues ({vpIssues.length})
                 </p>
                 {vpIssues.length === 0 ? (
-                  <p className="text-base text-muted-foreground py-8 text-center">
-                    No issues detected for this viewport.
-                  </p>
+                  <div className="flex flex-col items-center py-8 text-center">
+                    <CheckCircle2 className="size-8 text-green-500 mb-2" />
+                    <p className="text-base font-medium">No issues detected</p>
+                    <p className="text-sm text-muted-foreground">This viewport passed all checks.</p>
+                  </div>
                 ) : (
                   vpIssues.map((issue) => (
                     <div
