@@ -20,9 +20,12 @@ export async function GET(
 
   try {
     const file = await readFile(filePath);
+    const contentType = filePath.endsWith(".jpg") || filePath.endsWith(".jpeg")
+      ? "image/jpeg"
+      : "image/png";
     return new NextResponse(file, {
       headers: {
-        "Content-Type": "image/png",
+        "Content-Type": contentType,
         "Cache-Control": "public, max-age=31536000, immutable",
       },
     });

@@ -192,7 +192,9 @@ async function takeScreenshot(
   const dir = path.join(SCREENSHOTS_DIR, scanId);
   await fs.mkdir(dir, { recursive: true });
 
-  const filename = `${device.name.toLowerCase().replace(/\s+/g, "-")}.png`;
+  const baseName = device.name.toLowerCase().replace(/\s+/g, "-");
+  // We'll save as JPEG for much smaller file sizes
+  const filename = `${baseName}.jpg`;
   const filepath = path.join(dir, filename);
 
   // Hide fixed/sticky elements to prevent them repeating in full-page screenshot
@@ -222,11 +224,38 @@ async function takeScreenshot(
     );
   });
 
-  // Take full-page screenshot (Playwright handles deviceScaleFactor correctly)
-  const buffer = await page.screenshot({
-    fullPage: true,
-    type: "png",
+  // Get actual content height and cap it to prevent absurdly tall screenshots
+  const contentHeight = await page.evaluate(() => {
+    const body = document.body;
+    const html = document.documentElement;
+    return Math.max(
+      body.scrollHeight, body.offsetHeight,
+      html.clientHeight, html.scrollHeight, html.offsetHeight
+    );
   });
+
+  // Cap at 8000 CSS pixels tall (reasonable for any page)
+  // This prevents 30K+ pixel tall images on long pages
+  const MAX_HEIGHT_CSS = 8000;
+  const needsClip = contentHeight > MAX_HEIGHT_CSS;
+
+  let buffer: Buffer;
+  if (needsClip) {
+    // Use clip to cap height (coordinates are in CSS pixels, Playwright scales internally)
+    buffer = await page.screenshot({
+      fullPage: false,
+      type: "jpeg",
+      quality: 80,
+      clip: { x: 0, y: 0, width: device.width, height: MAX_HEIGHT_CSS },
+    });
+  } else {
+    // Normal full-page capture
+    buffer = await page.screenshot({
+      fullPage: true,
+      type: "jpeg",
+      quality: 85,
+    });
+  }
 
   // Restore hidden fixed elements
   await page.evaluate(() => {
@@ -236,17 +265,21 @@ async function takeScreenshot(
       delete (el as HTMLElement).dataset.uiAuditHidden;
     }
   });
-  await fs.writeFile(filepath, buffer);
 
-  // PNG dimensions are stored in bytes 16-23 of the header
-  const width = buffer.readUInt32BE(16);
-  const height = buffer.readUInt32BE(20);
+  // Save as JPEG (much smaller than PNG for photos/screenshots)
+  const jpegFilename = `${device.name.toLowerCase().replace(/\s+/g, "-")}.jpg`;
+  const jpegFilepath = path.join(dir, jpegFilename);
+  await fs.writeFile(jpegFilepath, buffer);
 
-  // Return API path for serving (standalone doesn't serve runtime public files)
+  // Calculate actual pixel dimensions (CSS pixels × deviceScaleFactor)
+  const scale = device.deviceScaleFactor ?? 1;
+  const screenshotWidth = Math.round(device.width * scale);
+  const screenshotHeight = Math.round((needsClip ? MAX_HEIGHT_CSS : contentHeight) * scale);
+
   return {
     screenshotPath: `/api/screenshots/${scanId}/${filename}`,
-    screenshotWidth: width,
-    screenshotHeight: height,
+    screenshotWidth,
+    screenshotHeight,
   };
 }
 
