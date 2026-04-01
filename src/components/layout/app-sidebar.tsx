@@ -12,6 +12,7 @@ import {
   History,
   HelpCircle,
   Globe,
+  GitCompareArrows,
 } from "lucide-react"
 import {
   Sidebar,
@@ -34,6 +35,7 @@ const navMain = [
 
 const navCrawler = [
   { title: "New Crawl", url: "/crawl/new", icon: Globe },
+  { title: "Compare Crawls", url: "/crawl/compare", icon: GitCompareArrows },
   { title: "Crawl History", url: "/history?tab=crawls", icon: History },
 ]
 

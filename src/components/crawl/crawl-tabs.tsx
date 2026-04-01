@@ -28,6 +28,8 @@ import {
 } from "@/components/ui/tooltip";
 
 import { findDuplicateClusters } from "@/lib/crawler/simhash";
+import { buildSiteTree } from "@/lib/crawler/site-tree";
+import { SiteTree } from "./site-tree";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -1494,6 +1496,7 @@ const TAB_ITEMS = [
   { value: "links", label: "Links" },
   { value: "redirects", label: "Redirects" },
   { value: "duplicates", label: "Duplicates" },
+  { value: "tree", label: "Site Tree" },
 ] as const;
 
 export function CrawlTabs({ pages }: CrawlTabsProps) {
@@ -1516,6 +1519,21 @@ export function CrawlTabs({ pages }: CrawlTabsProps) {
           (p.redirectChain as CrawlPage["redirectChain"]) ?? null,
       })),
     [pages]
+  );
+
+  const siteTree = useMemo(
+    () =>
+      buildSiteTree(
+        typedPages.map((p) => ({
+          url: p.url,
+          statusCode: p.statusCode,
+          title: p.title,
+          wordCount: p.wordCount,
+          responseTimeMs: p.responseTimeMs,
+          inlinksCount: p.inlinksCount,
+        }))
+      ),
+    [typedPages]
   );
 
   return (
@@ -1556,6 +1574,9 @@ export function CrawlTabs({ pages }: CrawlTabsProps) {
       </TabsContent>
       <TabsContent value="duplicates">
         <DuplicatesTab pages={typedPages} />
+      </TabsContent>
+      <TabsContent value="tree">
+        <SiteTree tree={siteTree} />
       </TabsContent>
     </Tabs>
   );
