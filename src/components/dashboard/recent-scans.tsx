@@ -18,6 +18,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/empty-state";
 import { buttonVariants } from "@/lib/button-variants";
 import { cn } from "@/lib/utils";
 import { SCAN_STATUS_CONFIG, getGradeColor } from "@/lib/ui-constants";
@@ -78,23 +79,17 @@ export function RecentScans({ scans }: RecentScansProps) {
     return (
       <Card>
         <CardContent>
-          <div className="flex flex-col items-center justify-center py-12 text-center">
-            <div className="rounded-full bg-muted p-4 mb-4">
-              <Monitor className="size-8 text-muted-foreground" />
-            </div>
-            <h3 className="text-lg font-semibold mb-1">No scans yet</h3>
-            <p className="text-muted-foreground text-base mb-4 max-w-sm">
-              Start by scanning a website to get a comprehensive UI/UX audit
-              across multiple viewports.
-            </p>
-            <Link
-              href="/scan/new"
-              className={cn(buttonVariants({ variant: "default" }))}
-            >
-              Start Your First Scan
-              <ArrowRight className="size-4 ml-2" />
-            </Link>
-          </div>
+          <EmptyState
+            icon={Monitor}
+            title="No scans yet"
+            description="Start by scanning a website to get a comprehensive UI/UX audit across multiple viewports."
+            action={
+              <Link href="/scan/new" className={cn(buttonVariants({ variant: "default" }))}>
+                Start Your First Scan
+                <ArrowRight className="size-4 ml-2" />
+              </Link>
+            }
+          />
         </CardContent>
       </Card>
     );

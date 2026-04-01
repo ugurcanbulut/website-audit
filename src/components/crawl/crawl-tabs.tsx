@@ -4,14 +4,10 @@ import { Fragment, useState, useMemo, useCallback } from "react";
 import {
   ChevronDown,
   ChevronUp,
-  ArrowUpDown,
-  Search,
-  Download,
-  AlertTriangle,
   ArrowRight,
   Copy,
+  Download,
 } from "lucide-react";
-import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -29,8 +25,22 @@ import {
 
 import { findDuplicateClusters } from "@/lib/crawler/simhash";
 import { buildSiteTree } from "@/lib/crawler/site-tree";
-import { getHttpStatusColor } from "@/lib/ui-constants";
 import { SiteTree } from "./site-tree";
+import {
+  DataTable,
+  TableShell,
+  SortHeader,
+  UrlCell,
+  StatusBadge,
+  IssueBadges,
+  downloadCsv,
+  truncate,
+  arrLen,
+  urlPath,
+  useTableState,
+  type ColumnDef,
+  type SortDir,
+} from "./crawl-data-table";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -70,7 +80,6 @@ interface CrawlPage {
   redirectChain: Array<{ url: string; statusCode: number }> | null;
 }
 
-// The DB returns jsonb columns as `unknown`. Accept either typed or raw data.
 export interface CrawlTabsProps {
   pages: Array<{
     id: string;
@@ -96,269 +105,6 @@ export interface CrawlTabsProps {
     inlinksCount: number | null;
     [key: string]: unknown;
   }>;
-}
-
-type SortDir = "asc" | "desc";
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function statusColor(code: number | null): string {
-  if (!code) return "text-muted-foreground";
-  return getHttpStatusColor(code);
-}
-
-function statusBadgeVariant(
-  code: number | null
-): "default" | "secondary" | "destructive" | "outline" {
-  if (!code) return "secondary";
-  if (code >= 200 && code < 300) return "outline";
-  if (code >= 300 && code < 400) return "secondary";
-  if (code >= 400) return "destructive";
-  return "outline";
-}
-
-function truncate(str: string | null | undefined, max: number): string {
-  if (!str) return "";
-  return str.length > max ? str.slice(0, max) + "\u2026" : str;
-}
-
-function arrLen(val: unknown): number {
-  return Array.isArray(val) ? val.length : 0;
-}
-
-function urlPath(url: string): string {
-  try {
-    return new URL(url).pathname;
-  } catch {
-    return url;
-  }
-}
-
-function downloadCsv(filename: string, headers: string[], rows: string[][]) {
-  const csv = [
-    headers.join(","),
-    ...rows.map((row) =>
-      row
-        .map((cell) => `"${String(cell ?? "").replace(/"/g, '""')}"`)
-        .join(",")
-    ),
-  ].join("\n");
-  const blob = new Blob([csv], { type: "text/csv" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
-// ---------------------------------------------------------------------------
-// Shared sortable table infrastructure
-// ---------------------------------------------------------------------------
-
-interface ColumnDef<T> {
-  key: string;
-  label: string;
-  align?: "left" | "right";
-  sortFn?: (a: T, b: T) => number;
-  render: (row: T) => React.ReactNode;
-  className?: string;
-}
-
-function SortHeader({
-  label,
-  isActive,
-  sortDir,
-  align,
-  onClick,
-}: {
-  label: string;
-  isActive: boolean;
-  sortDir: SortDir;
-  align?: "left" | "right";
-  onClick: () => void;
-}) {
-  return (
-    <th className={`px-3 py-2 ${align === "right" ? "text-right" : "text-left"}`}>
-      <button
-        type="button"
-        onClick={onClick}
-        className="inline-flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
-      >
-        {label}
-        {isActive ? (
-          sortDir === "asc" ? (
-            <ChevronUp className="size-3" />
-          ) : (
-            <ChevronDown className="size-3" />
-          )
-        ) : (
-          <ArrowUpDown className="size-3 opacity-40" />
-        )}
-      </button>
-    </th>
-  );
-}
-
-function UrlCell({ url }: { url: string }) {
-  const path = urlPath(url);
-  return (
-    <Tooltip>
-      <TooltipTrigger className="truncate block max-w-[260px] text-left">
-        {truncate(path, 45)}
-      </TooltipTrigger>
-      <TooltipContent>{url}</TooltipContent>
-    </Tooltip>
-  );
-}
-
-function StatusBadge({ code }: { code: number | null }) {
-  return (
-    <Badge variant={statusBadgeVariant(code)}>
-      <span className={`font-mono text-[11px] ${statusColor(code)}`}>
-        {code ?? "--"}
-      </span>
-    </Badge>
-  );
-}
-
-function IssueBadges({ issues }: { issues: string[] }) {
-  if (issues.length === 0) return <span className="text-muted-foreground">--</span>;
-  return (
-    <div className="flex flex-wrap gap-1">
-      {issues.map((issue, i) => (
-        <Badge key={i} variant="destructive" className="text-[10px]">
-          <AlertTriangle className="size-2.5 mr-0.5" />
-          {issue}
-        </Badge>
-      ))}
-    </div>
-  );
-}
-
-function DataTable<T extends { id: string; url: string }>({
-  data,
-  columns,
-  searchPlaceholder,
-  exportFilename,
-  exportHeaders,
-  exportRowFn,
-}: {
-  data: T[];
-  columns: ColumnDef<T>[];
-  searchPlaceholder?: string;
-  exportFilename: string;
-  exportHeaders: string[];
-  exportRowFn: (row: T) => string[];
-}) {
-  const [search, setSearch] = useState("");
-  const [sortKey, setSortKey] = useState<string>(columns[0]?.key ?? "");
-  const [sortDir, setSortDir] = useState<SortDir>("asc");
-
-  function toggleSort(key: string) {
-    if (sortKey === key) {
-      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    } else {
-      setSortKey(key);
-      setSortDir("asc");
-    }
-  }
-
-  const filtered = useMemo(() => {
-    const q = search.toLowerCase();
-    if (!q) return data;
-    return data.filter((p) => p.url.toLowerCase().includes(q));
-  }, [data, search]);
-
-  const sorted = useMemo(() => {
-    const col = columns.find((c) => c.key === sortKey);
-    if (!col?.sortFn) return filtered;
-    return [...filtered].sort((a, b) => {
-      const cmp = col.sortFn!(a, b);
-      return sortDir === "asc" ? cmp : -cmp;
-    });
-  }, [filtered, sortKey, sortDir, columns]);
-
-  const handleExport = useCallback(() => {
-    downloadCsv(exportFilename, exportHeaders, sorted.map(exportRowFn));
-  }, [sorted, exportFilename, exportHeaders, exportRowFn]);
-
-  return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-2">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder={searchPlaceholder ?? "Filter by URL..."}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-8"
-          />
-        </div>
-        <Button variant="outline" size="sm" onClick={handleExport}>
-          <Download className="size-3.5 mr-1.5" />
-          Export CSV
-        </Button>
-      </div>
-
-      <div className="rounded-lg border overflow-hidden">
-        <div className="max-h-[400px] md:max-h-[600px] overflow-auto">
-          <TooltipProvider>
-            <table className="w-full text-base">
-              <thead className="sticky top-0 z-10 bg-muted/95 backdrop-blur-sm">
-                <tr className="border-b">
-                  {columns.map((col) => (
-                    <SortHeader
-                      key={col.key}
-                      label={col.label}
-                      isActive={sortKey === col.key}
-                      sortDir={sortDir}
-                      align={col.align}
-                      onClick={() => toggleSort(col.key)}
-                    />
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {sorted.map((row) => (
-                  <tr
-                    key={row.id}
-                    className="border-b hover:bg-muted/30 transition-colors"
-                  >
-                    {columns.map((col) => (
-                      <td
-                        key={col.key}
-                        className={`px-3 py-2 ${col.align === "right" ? "text-right tabular-nums" : ""} ${col.className ?? ""}`}
-                      >
-                        {col.render(row)}
-                      </td>
-                    ))}
-                  </tr>
-                ))}
-                {sorted.length === 0 && (
-                  <tr>
-                    <td
-                      colSpan={columns.length}
-                      className="px-3 py-8 text-center text-muted-foreground"
-                    >
-                      No results found.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </TooltipProvider>
-        </div>
-      </div>
-
-      <p className="text-sm text-muted-foreground">
-        Showing {sorted.length} of {data.length} rows
-        {search && ` (filtered by "${search}")`}
-      </p>
-    </div>
-  );
 }
 
 // ---------------------------------------------------------------------------
@@ -484,10 +230,28 @@ function ResponseCodesTab({ pages }: { pages: CrawlPage[] }) {
         sortFn: (a, b) => (a.statusCode ?? 0) - (b.statusCode ?? 0),
         render: (row) => {
           const code = row.statusCode ?? 0;
-          if (code >= 200 && code < 300) return <span className="text-green-600 dark:text-green-400">OK</span>;
-          if (code >= 300 && code < 400) return <span className="text-blue-600 dark:text-blue-400">Redirect</span>;
-          if (code >= 400 && code < 500) return <span className="text-amber-600 dark:text-amber-400">Client Error</span>;
-          if (code >= 500) return <span className="text-red-600 dark:text-red-400">Server Error</span>;
+          if (code >= 200 && code < 300)
+            return (
+              <span className="text-green-600 dark:text-green-400">OK</span>
+            );
+          if (code >= 300 && code < 400)
+            return (
+              <span className="text-blue-600 dark:text-blue-400">
+                Redirect
+              </span>
+            );
+          if (code >= 400 && code < 500)
+            return (
+              <span className="text-amber-600 dark:text-amber-400">
+                Client Error
+              </span>
+            );
+          if (code >= 500)
+            return (
+              <span className="text-red-600 dark:text-red-400">
+                Server Error
+              </span>
+            );
           return <span className="text-muted-foreground">Unknown</span>;
         },
       },
@@ -495,7 +259,8 @@ function ResponseCodesTab({ pages }: { pages: CrawlPage[] }) {
         key: "redirectUrl",
         label: "Redirect URL",
         className: "max-w-[300px]",
-        sortFn: (a, b) => (a.redirectUrl ?? "").localeCompare(b.redirectUrl ?? ""),
+        sortFn: (a, b) =>
+          (a.redirectUrl ?? "").localeCompare(b.redirectUrl ?? ""),
         render: (row) =>
           row.redirectUrl ? (
             <Tooltip>
@@ -558,10 +323,7 @@ function ResponseCodesTab({ pages }: { pages: CrawlPage[] }) {
 // Tab: Page Titles
 // ---------------------------------------------------------------------------
 
-function titleIssues(
-  page: CrawlPage,
-  allPages: CrawlPage[]
-): string[] {
+function titleIssues(page: CrawlPage, allPages: CrawlPage[]): string[] {
   const issues: string[] = [];
   if (!page.title) {
     issues.push("Missing");
@@ -606,7 +368,9 @@ function PageTitlesTab({ pages }: { pages: CrawlPage[] }) {
         render: (row) => (
           <Tooltip>
             <TooltipTrigger className="truncate block max-w-[300px] text-left">
-              {row.title || <span className="text-muted-foreground italic">Missing</span>}
+              {row.title || (
+                <span className="text-muted-foreground italic">Missing</span>
+              )}
             </TooltipTrigger>
             <TooltipContent>{row.title ?? "No title"}</TooltipContent>
           </Tooltip>
@@ -621,7 +385,13 @@ function PageTitlesTab({ pages }: { pages: CrawlPage[] }) {
           const len = row._titleLen;
           const warn = len > 0 && (len < 30 || len > 60);
           return (
-            <span className={warn ? "text-amber-600 dark:text-amber-400 font-medium" : ""}>
+            <span
+              className={
+                warn
+                  ? "text-amber-600 dark:text-amber-400 font-medium"
+                  : ""
+              }
+            >
               {len}
             </span>
           );
@@ -657,10 +427,7 @@ function PageTitlesTab({ pages }: { pages: CrawlPage[] }) {
 // Tab: Meta Descriptions
 // ---------------------------------------------------------------------------
 
-function metaIssues(
-  page: CrawlPage,
-  allPages: CrawlPage[]
-): string[] {
+function metaIssues(page: CrawlPage, allPages: CrawlPage[]): string[] {
   const issues: string[] = [];
   if (!page.metaDescription) {
     issues.push("Missing");
@@ -728,7 +495,13 @@ function MetaDescriptionsTab({ pages }: { pages: CrawlPage[] }) {
           const len = row._metaLen;
           const warn = len > 0 && (len < 70 || len > 160);
           return (
-            <span className={warn ? "text-amber-600 dark:text-amber-400 font-medium" : ""}>
+            <span
+              className={
+                warn
+                  ? "text-amber-600 dark:text-amber-400 font-medium"
+                  : ""
+              }
+            >
               {len}
             </span>
           );
@@ -825,7 +598,13 @@ function HeadingsTab({ pages }: { pages: CrawlPage[] }) {
         render: (row) => {
           const warn = row._h1Count === 0 || row._h1Count > 1;
           return (
-            <span className={warn ? "text-amber-600 dark:text-amber-400 font-medium" : ""}>
+            <span
+              className={
+                warn
+                  ? "text-amber-600 dark:text-amber-400 font-medium"
+                  : ""
+              }
+            >
               {row._h1Count}
             </span>
           );
@@ -866,7 +645,7 @@ function HeadingsTab({ pages }: { pages: CrawlPage[] }) {
 }
 
 // ---------------------------------------------------------------------------
-// Tab: Images
+// Tab: Images (expandable rows)
 // ---------------------------------------------------------------------------
 
 function ImagesTab({ pages }: { pages: CrawlPage[] }) {
@@ -877,7 +656,8 @@ function ImagesTab({ pages }: { pages: CrawlPage[] }) {
         return {
           ...p,
           _totalImages: imgs.length,
-          _missingAlt: imgs.filter((i) => !i.alt || i.alt.trim() === "").length,
+          _missingAlt: imgs.filter((i) => !i.alt || i.alt.trim() === "")
+            .length,
         };
       }),
     [pages]
@@ -943,34 +723,8 @@ function ImagesTab({ pages }: { pages: CrawlPage[] }) {
     [expandedId]
   );
 
-  // Custom rendering because we need expandable rows
-  const [search, setSearch] = useState("");
-  const [sortKey, setSortKey] = useState("url");
-  const [sortDir, setSortDir] = useState<SortDir>("asc");
-
-  function toggleSort(key: string) {
-    if (sortKey === key) {
-      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    } else {
-      setSortKey(key);
-      setSortDir("asc");
-    }
-  }
-
-  const filtered = useMemo(() => {
-    const q = search.toLowerCase();
-    if (!q) return pagesWithImages;
-    return pagesWithImages.filter((p) => p.url.toLowerCase().includes(q));
-  }, [pagesWithImages, search]);
-
-  const sorted = useMemo(() => {
-    const col = columns.find((c) => c.key === sortKey);
-    if (!col?.sortFn) return filtered;
-    return [...filtered].sort((a, b) => {
-      const cmp = col.sortFn!(a, b);
-      return sortDir === "asc" ? cmp : -cmp;
-    });
-  }, [filtered, sortKey, sortDir, columns]);
+  const { search, setSearch, sortKey, sortDir, toggleSort, sorted } =
+    useTableState(pagesWithImages, columns);
 
   const handleExport = useCallback(() => {
     downloadCsv(
@@ -986,103 +740,78 @@ function ImagesTab({ pages }: { pages: CrawlPage[] }) {
   }, [sorted]);
 
   return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-2">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Filter by URL..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-8"
-          />
-        </div>
-        <Button variant="outline" size="sm" onClick={handleExport}>
-          <Download className="size-3.5 mr-1.5" />
-          Export CSV
-        </Button>
-      </div>
-
-      <div className="rounded-lg border overflow-hidden">
-        <div className="max-h-[400px] md:max-h-[600px] overflow-auto">
-          <TooltipProvider>
-            <table className="w-full text-base">
-              <thead className="sticky top-0 z-10 bg-muted/95 backdrop-blur-sm">
-                <tr className="border-b">
-                  {columns.map((col) => (
-                    <SortHeader
-                      key={col.key}
-                      label={col.label}
-                      isActive={sortKey === col.key}
-                      sortDir={sortDir}
-                      align={col.align}
-                      onClick={() => toggleSort(col.key)}
-                    />
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {sorted.map((row) => (
-                  <Fragment key={row.id}>
-                    <tr className="border-b hover:bg-muted/30 transition-colors">
-                      {columns.map((col) => (
-                        <td
-                          key={col.key}
-                          className={`px-3 py-2 ${col.align === "right" ? "text-right tabular-nums" : ""} ${col.className ?? ""}`}
-                        >
-                          {col.render(row)}
-                        </td>
-                      ))}
-                    </tr>
-                    {expandedId === row.id && (
-                      <tr className="border-b bg-muted/20">
-                        <td colSpan={columns.length} className="px-6 py-3">
-                          <div className="space-y-1 text-sm max-h-[200px] overflow-auto">
-                            {(row.images ?? []).map((img, i) => (
-                              <div
-                                key={i}
-                                className="flex items-start gap-3 py-1"
-                              >
-                                <span className="text-muted-foreground font-mono text-xs w-6 shrink-0">
-                                  {i + 1}.
-                                </span>
-                                <span className="truncate flex-1 break-all">
-                                  {img.src}
-                                </span>
-                                <span
-                                  className={`shrink-0 text-xs ${!img.alt || img.alt.trim() === "" ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}`}
-                                >
-                                  {img.alt || "No alt"}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                        </td>
-                      </tr>
-                    )}
-                  </Fragment>
+    <TableShell
+      search={search}
+      setSearch={setSearch}
+      onExport={handleExport}
+      totalLabel={`Showing ${sorted.length} of ${pagesWithImages.length} rows${search ? ` (filtered by "${search}")` : ""}`}
+    >
+      <table className="w-full text-base">
+        <thead className="sticky top-0 z-10 bg-muted/95 backdrop-blur-sm">
+          <tr className="border-b">
+            {columns.map((col) => (
+              <SortHeader
+                key={col.key}
+                label={col.label}
+                isActive={sortKey === col.key}
+                sortDir={sortDir}
+                align={col.align}
+                onClick={() => toggleSort(col.key)}
+              />
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {sorted.map((row) => (
+            <Fragment key={row.id}>
+              <tr className="border-b hover:bg-muted/30 transition-colors">
+                {columns.map((col) => (
+                  <td
+                    key={col.key}
+                    className={`px-3 py-2 ${col.align === "right" ? "text-right tabular-nums" : ""} ${col.className ?? ""}`}
+                  >
+                    {col.render(row)}
+                  </td>
                 ))}
-                {sorted.length === 0 && (
-                  <tr>
-                    <td
-                      colSpan={columns.length}
-                      className="px-3 py-8 text-center text-muted-foreground"
-                    >
-                      No results found.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </TooltipProvider>
-        </div>
-      </div>
-
-      <p className="text-sm text-muted-foreground">
-        Showing {sorted.length} of {pagesWithImages.length} rows
-        {search && ` (filtered by "${search}")`}
-      </p>
-    </div>
+              </tr>
+              {expandedId === row.id && (
+                <tr className="border-b bg-muted/20">
+                  <td colSpan={columns.length} className="px-6 py-3">
+                    <div className="space-y-1 text-sm max-h-[200px] overflow-auto">
+                      {(row.images ?? []).map((img, i) => (
+                        <div key={i} className="flex items-start gap-3 py-1">
+                          <span className="text-muted-foreground font-mono text-xs w-6 shrink-0">
+                            {i + 1}.
+                          </span>
+                          <span className="truncate flex-1 break-all">
+                            {img.src}
+                          </span>
+                          <span
+                            className={`shrink-0 text-xs ${!img.alt || img.alt.trim() === "" ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}`}
+                          >
+                            {img.alt || "No alt"}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </td>
+                </tr>
+              )}
+            </Fragment>
+          ))}
+          {sorted.length === 0 && (
+            <tr>
+              <td
+                colSpan={columns.length}
+                className="px-3 py-8 text-center text-muted-foreground"
+              >
+                No results found.
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </TableShell>
   );
 }
 
@@ -1097,7 +826,7 @@ function LinksTab({ pages }: { pages: CrawlPage[] }) {
         ...p,
         _internalCount: arrLen(p.internalLinks),
         _externalCount: arrLen(p.externalLinks),
-        _brokenCount: 0, // We don't have broken link data per-link yet
+        _brokenCount: 0,
       })),
     [pages]
   );
@@ -1176,7 +905,7 @@ function LinksTab({ pages }: { pages: CrawlPage[] }) {
 }
 
 // ---------------------------------------------------------------------------
-// Tab: Redirects
+// Tab: Redirects (expandable rows)
 // ---------------------------------------------------------------------------
 
 interface RedirectRow {
@@ -1226,7 +955,10 @@ function RedirectsTab({ pages }: { pages: CrawlPage[] }) {
   }, [redirectPages, search]);
 
   const sorted = useMemo(() => {
-    const sortFns: Record<string, (a: RedirectRow, b: RedirectRow) => number> = {
+    const sortFns: Record<
+      string,
+      (a: RedirectRow, b: RedirectRow) => number
+    > = {
       url: (a, b) => a.url.localeCompare(b.url),
       statusCode: (a, b) => (a.statusCode ?? 0) - (b.statusCode ?? 0),
       hops: (a, b) => a.hops - b.hops,
@@ -1264,117 +996,113 @@ function RedirectsTab({ pages }: { pages: CrawlPage[] }) {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Filter by URL..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-8"
-          />
-        </div>
-        <Button variant="outline" size="sm" onClick={handleExport}>
-          <Download className="size-3.5 mr-1.5" />
-          Export CSV
-        </Button>
-      </div>
-
-      {redirectPages.length === 0 ? (
-        <div className="rounded-lg border p-8 text-center text-muted-foreground">
-          No redirect chains detected.
-        </div>
-      ) : (
-        <div className="rounded-lg border overflow-hidden">
-          <div className="max-h-[400px] md:max-h-[600px] overflow-auto">
-            <TooltipProvider>
-              <table className="w-full text-base">
-                <thead className="sticky top-0 z-10 bg-muted/95 backdrop-blur-sm">
-                  <tr className="border-b">
-                    {columns.map((col) => (
-                      <SortHeader
-                        key={col.key}
-                        label={col.label}
-                        isActive={sortKey === col.key}
-                        sortDir={sortDir}
-                        align={col.align}
-                        onClick={() => toggleSort(col.key)}
-                      />
-                    ))}
+      <TableShell
+        search={search}
+        setSearch={setSearch}
+        onExport={handleExport}
+        totalLabel={`${redirectPages.length} page${redirectPages.length !== 1 ? "s" : ""} with redirect chains${search ? ` (showing ${sorted.length} filtered)` : ""}`}
+      >
+        {redirectPages.length === 0 ? (
+          <div className="rounded-lg p-8 text-center text-muted-foreground">
+            No redirect chains detected.
+          </div>
+        ) : (
+          <table className="w-full text-base">
+            <thead className="sticky top-0 z-10 bg-muted/95 backdrop-blur-sm">
+              <tr className="border-b">
+                {columns.map((col) => (
+                  <SortHeader
+                    key={col.key}
+                    label={col.label}
+                    isActive={sortKey === col.key}
+                    sortDir={sortDir}
+                    align={col.align}
+                    onClick={() => toggleSort(col.key)}
+                  />
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.map((row) => (
+                <Fragment key={row.id}>
+                  <tr className="border-b hover:bg-muted/30 transition-colors">
+                    <td className="px-3 py-2 max-w-[260px]">
+                      <UrlCell url={row.url} />
+                    </td>
+                    <td className="px-3 py-2">
+                      <StatusBadge code={row.statusCode} />
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums">
+                      <span
+                        className={
+                          row.hops > 1
+                            ? "text-amber-600 dark:text-amber-400 font-medium"
+                            : ""
+                        }
+                      >
+                        {row.hops}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 max-w-[260px]">
+                      <UrlCell url={row.finalUrl} />
+                    </td>
+                    <td className="px-3 py-2">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setExpandedId(
+                            expandedId === row.id ? null : row.id
+                          )
+                        }
+                        className="text-sm text-primary hover:underline"
+                      >
+                        {expandedId === row.id ? "Hide" : "Show"} chain
+                      </button>
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {sorted.map((row) => (
-                    <Fragment key={row.id}>
-                      <tr className="border-b hover:bg-muted/30 transition-colors">
-                        <td className="px-3 py-2 max-w-[260px]">
-                          <UrlCell url={row.url} />
-                        </td>
-                        <td className="px-3 py-2">
-                          <StatusBadge code={row.statusCode} />
-                        </td>
-                        <td className="px-3 py-2 text-right tabular-nums">
-                          <span className={row.hops > 1 ? "text-amber-600 dark:text-amber-400 font-medium" : ""}>
-                            {row.hops}
+                  {expandedId === row.id && (
+                    <tr className="border-b bg-muted/20">
+                      <td colSpan={columns.length} className="px-6 py-3">
+                        <div className="flex flex-wrap items-center gap-2 text-sm">
+                          <span className="font-mono text-xs bg-muted px-2 py-1 rounded">
+                            {urlPath(row.url)}
                           </span>
-                        </td>
-                        <td className="px-3 py-2 max-w-[260px]">
-                          <UrlCell url={row.finalUrl} />
-                        </td>
-                        <td className="px-3 py-2">
-                          <button
-                            type="button"
-                            onClick={() => setExpandedId(expandedId === row.id ? null : row.id)}
-                            className="text-sm text-primary hover:underline"
-                          >
-                            {expandedId === row.id ? "Hide" : "Show"} chain
-                          </button>
-                        </td>
-                      </tr>
-                      {expandedId === row.id && (
-                        <tr className="border-b bg-muted/20">
-                          <td colSpan={columns.length} className="px-6 py-3">
-                            <div className="flex flex-wrap items-center gap-2 text-sm">
-                              <span className="font-mono text-xs bg-muted px-2 py-1 rounded">
-                                {urlPath(row.url)}
+                          {row.redirectChain.map((hop, i) => (
+                            <Fragment key={i}>
+                              <span className="flex items-center gap-1 text-muted-foreground">
+                                <ArrowRight className="size-3" />
+                                <Badge
+                                  variant="secondary"
+                                  className="text-[10px] font-mono"
+                                >
+                                  {hop.statusCode}
+                                </Badge>
                               </span>
-                              {row.redirectChain.map((hop, i) => (
-                                <Fragment key={i}>
-                                  <span className="flex items-center gap-1 text-muted-foreground">
-                                    <ArrowRight className="size-3" />
-                                    <Badge variant="secondary" className="text-[10px] font-mono">
-                                      {hop.statusCode}
-                                    </Badge>
-                                  </span>
-                                  <span className="font-mono text-xs bg-muted px-2 py-1 rounded">
-                                    {urlPath(hop.url)}
-                                  </span>
-                                </Fragment>
-                              ))}
-                            </div>
-                          </td>
-                        </tr>
-                      )}
-                    </Fragment>
-                  ))}
-                  {sorted.length === 0 && (
-                    <tr>
-                      <td colSpan={columns.length} className="px-3 py-8 text-center text-muted-foreground">
-                        No results found.
+                              <span className="font-mono text-xs bg-muted px-2 py-1 rounded">
+                                {urlPath(hop.url)}
+                              </span>
+                            </Fragment>
+                          ))}
+                        </div>
                       </td>
                     </tr>
                   )}
-                </tbody>
-              </table>
-            </TooltipProvider>
-          </div>
-        </div>
-      )}
-
-      <p className="text-sm text-muted-foreground">
-        {redirectPages.length} page{redirectPages.length !== 1 ? "s" : ""} with redirect chains
-        {search && ` (showing ${sorted.length} filtered)`}
-      </p>
+                </Fragment>
+              ))}
+              {sorted.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={columns.length}
+                    className="px-3 py-8 text-center text-muted-foreground"
+                  >
+                    No results found.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        )}
+      </TableShell>
     </div>
   );
 }
@@ -1409,8 +1137,9 @@ function DuplicatesTab({ pages }: { pages: CrawlPage[] }) {
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <p className="text-sm text-muted-foreground">
-          {clusters.length} duplicate cluster{clusters.length !== 1 ? "s" : ""} detected
-          {" "}({clusters.reduce((sum, c) => sum + c.urls.length, 0)} pages total)
+          {clusters.length} duplicate cluster
+          {clusters.length !== 1 ? "s" : ""} detected (
+          {clusters.reduce((sum, c) => sum + c.urls.length, 0)} pages total)
         </p>
         {clusters.length > 0 && (
           <Button variant="outline" size="sm" onClick={handleExport}>
@@ -1430,20 +1159,23 @@ function DuplicatesTab({ pages }: { pages: CrawlPage[] }) {
             <div key={idx} className="rounded-lg border overflow-hidden">
               <button
                 type="button"
-                onClick={() => setExpandedIdx(expandedIdx === idx ? null : idx)}
+                onClick={() =>
+                  setExpandedIdx(expandedIdx === idx ? null : idx)
+                }
                 className="w-full flex items-center justify-between px-4 py-3 bg-muted/30 hover:bg-muted/50 transition-colors text-left"
               >
                 <div className="flex items-center gap-3">
                   <div className="flex items-center gap-1.5">
                     <Copy className="size-4 text-amber-600 dark:text-amber-400" />
-                    <span className="font-medium">
-                      Cluster {idx + 1}
-                    </span>
+                    <span className="font-medium">Cluster {idx + 1}</span>
                   </div>
                   <Badge variant="secondary">
                     {cluster.urls.length} pages
                   </Badge>
-                  <Badge variant="outline" className="font-mono text-[11px]">
+                  <Badge
+                    variant="outline"
+                    className="font-mono text-[11px]"
+                  >
                     {cluster.similarity}% similar
                   </Badge>
                 </div>
@@ -1457,7 +1189,10 @@ function DuplicatesTab({ pages }: { pages: CrawlPage[] }) {
                 <div className="px-4 py-3 space-y-1 border-t">
                   <TooltipProvider>
                     {cluster.urls.map((url, i) => (
-                      <div key={i} className="flex items-center gap-2 py-1 text-sm">
+                      <div
+                        key={i}
+                        className="flex items-center gap-2 py-1 text-sm"
+                      >
                         <span className="text-muted-foreground font-mono text-xs w-6 shrink-0">
                           {i + 1}.
                         </span>
@@ -1498,7 +1233,6 @@ const TAB_ITEMS = [
 ] as const;
 
 export function CrawlTabs({ pages }: CrawlTabsProps) {
-  // Cast pages to expected shape with proper array types
   const typedPages: CrawlPage[] = useMemo(
     () =>
       pages.map((p) => ({

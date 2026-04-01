@@ -160,6 +160,7 @@ function AuditItem({ audit, savings }: {
 function LhrView({ lhr }: { lhr: Record<string, unknown> }) {
   const { categories, audits } = getLhrData(lhr);
   const [showPassed, setShowPassed] = useState(false);
+  const [showAllDiagnostics, setShowAllDiagnostics] = useState(false);
 
   if (!categories || !audits) {
     return <p className="text-muted-foreground">Lighthouse data not available.</p>;
@@ -270,10 +271,15 @@ function LhrView({ lhr }: { lhr: Record<string, unknown> }) {
             Diagnostics <span className="text-muted-foreground font-normal text-base">({diagnostics.length})</span>
           </h3>
           <div className="space-y-2">
-            {diagnostics.map((audit) => (
+            {(showAllDiagnostics ? diagnostics : diagnostics.slice(0, 5)).map((audit) => (
               <AuditItem key={audit.id} audit={audit} />
             ))}
           </div>
+          {diagnostics.length > 5 && !showAllDiagnostics && (
+            <button onClick={() => setShowAllDiagnostics(true)} className="text-base text-primary hover:underline mt-2">
+              Show {diagnostics.length - 5} more diagnostics...
+            </button>
+          )}
         </div>
       )}
 

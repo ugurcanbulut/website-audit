@@ -42,12 +42,15 @@ export function CategoryDetail({
   issueCount,
 }: CategoryDetailProps) {
   const [filter, setFilter] = useState<FilterSeverity>("all");
+  const [showAll, setShowAll] = useState(false);
   const grade = getGrade(score);
   const label = CATEGORY_LABELS[category] ?? category;
 
   const filteredIssues = (
     filter === "all" ? issues : issues.filter((i) => i.severity === filter)
   ).sort((a, b) => (SEVERITY_ORDER[a.severity] ?? 9) - (SEVERITY_ORDER[b.severity] ?? 9));
+
+  const visibleIssues = showAll ? filteredIssues : filteredIssues.slice(0, 10);
 
   const totalIssues = issueCount.critical + issueCount.warning + issueCount.info;
 
@@ -93,9 +96,14 @@ export function CategoryDetail({
                 No {filter === "all" ? "" : filter} issues in this category.
               </p>
             ) : (
-              filteredIssues.map((issue) => (
+              visibleIssues.map((issue) => (
                 <IssueCard key={issue.id} issue={issue} />
               ))
+            )}
+            {filteredIssues.length > 10 && !showAll && (
+              <button onClick={() => setShowAll(true)} className="text-base text-primary hover:underline w-full text-center py-2">
+                Show all {filteredIssues.length} issues
+              </button>
             )}
           </div>
         </TabsContent>

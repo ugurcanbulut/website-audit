@@ -156,7 +156,7 @@ export function ViewportTabs({ viewportResults, issues, annotationsByViewport }:
 
               {/* RIGHT: Issue List */}
               <div className="max-h-[700px] overflow-y-auto space-y-3">
-                <p className="text-base font-medium sticky top-0 bg-background py-2 z-10 border-b">
+                <p className="text-base font-medium sticky top-0 bg-background/80 backdrop-blur-md py-2 z-10 border-b">
                   Issues ({vpIssues.length})
                 </p>
                 {vpIssues.length === 0 ? (

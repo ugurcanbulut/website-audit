@@ -144,6 +144,16 @@ button:not(:disabled):active,
   transform: scale(0.98);
 }
 
+/* Glassmorphism for sticky headers */
+.glass-header {
+  @apply bg-background/80 backdrop-blur-md border-b;
+}
+
+/* Smooth sidebar transitions */
+[data-sidebar] {
+  transition: width 200ms ease, transform 200ms ease;
+}
+
 /* PhotoSwipe: respect full-page screenshot aspect ratio */
 .pswp__img {
   object-fit: contain !important;

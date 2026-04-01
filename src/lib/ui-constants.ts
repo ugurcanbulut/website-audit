@@ -42,7 +42,7 @@ export const SEVERITY_COLORS = {
 
 // ── Score/Grade colors ──────────────────────────────────────────────
 export const GRADE_COLORS: Record<string, string> = {
-  A: "text-green-600 dark:text-green-400",
+  A: "text-green-700 dark:text-green-400",
   B: "text-blue-600 dark:text-blue-400",
   C: "text-yellow-600 dark:text-yellow-400",
   D: "text-orange-600 dark:text-orange-400",
@@ -58,7 +58,7 @@ export const GRADE_BG_COLORS: Record<string, string> = {
 };
 
 export function getScoreColor(score: number): string {
-  if (score >= 90) return "text-green-600 dark:text-green-400";
+  if (score >= 90) return "text-green-700 dark:text-green-400";
   if (score >= 80) return "text-blue-600 dark:text-blue-400";
   if (score >= 70) return "text-yellow-600 dark:text-yellow-400";
   if (score >= 60) return "text-orange-600 dark:text-orange-400";
