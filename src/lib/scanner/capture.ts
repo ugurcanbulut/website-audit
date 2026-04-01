@@ -195,56 +195,46 @@ async function takeScreenshot(
   const filename = `${device.name.toLowerCase().replace(/\s+/g, "-")}.png`;
   const filepath = path.join(dir, filename);
 
-  // Remove sticky/fixed positioning for clean full-page capture
+  // Hide fixed/sticky elements to prevent them repeating in full-page screenshot
+  // Use visibility:hidden instead of changing position (which breaks layouts)
   await page.evaluate(() => {
-    const elements = document.querySelectorAll('*');
+    const elements = document.querySelectorAll("*");
     for (const el of Array.from(elements)) {
       const style = window.getComputedStyle(el);
-      if (style.position === 'fixed' || style.position === 'sticky') {
-        (el as HTMLElement).style.position = 'absolute';
+      if (style.position === "fixed") {
+        (el as HTMLElement).dataset.uiAuditHidden = "true";
+        (el as HTMLElement).style.visibility = "hidden";
       }
     }
   });
 
-  // Wait for video elements to load
+  // Wait for video elements to have a frame ready
   await page.evaluate(async () => {
-    const videos = Array.from(document.querySelectorAll('video'));
+    const videos = Array.from(document.querySelectorAll("video"));
     await Promise.all(
       videos.map((video) => {
-        if (video.readyState >= 2) return; // HAVE_CURRENT_DATA
+        if (video.readyState >= 2) return;
         return new Promise<void>((resolve) => {
-          video.addEventListener('loadeddata', () => resolve(), { once: true });
-          // Don't wait more than 5 seconds per video
+          video.addEventListener("loadeddata", () => resolve(), { once: true });
           setTimeout(resolve, 5000);
         });
       })
     );
   });
 
-  // Get actual content height to avoid excess whitespace
-  const contentHeight = await page.evaluate(() => {
-    const body = document.body;
-    const html = document.documentElement;
-    return Math.max(
-      body.scrollHeight, body.offsetHeight,
-      html.clientHeight, html.scrollHeight, html.offsetHeight
-    );
+  // Take full-page screenshot (Playwright handles deviceScaleFactor correctly)
+  const buffer = await page.screenshot({
+    fullPage: true,
+    type: "png",
   });
 
-  // Cap at 10x viewport height to prevent extremely tall screenshots
-  const maxHeight = device.height * 10;
-  const clippedHeight = Math.min(contentHeight, maxHeight);
-
-  // Take screenshot into buffer first to read dimensions
-  const buffer = await page.screenshot({
-    fullPage: false,
-    type: "png",
-    clip: {
-      x: 0,
-      y: 0,
-      width: device.width,
-      height: clippedHeight,
-    },
+  // Restore hidden fixed elements
+  await page.evaluate(() => {
+    const hidden = document.querySelectorAll("[data-ui-audit-hidden]");
+    for (const el of Array.from(hidden)) {
+      (el as HTMLElement).style.visibility = "";
+      delete (el as HTMLElement).dataset.uiAuditHidden;
+    }
   });
   await fs.writeFile(filepath, buffer);
 
