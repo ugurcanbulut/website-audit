@@ -153,19 +153,24 @@ export default async function ScanDetailPage({ params }: ScanDetailPageProps) {
     issueCount: cs.issueCount as CategoryScore["issueCount"],
   }));
 
-  const issues: AuditIssue[] = issuesRaw.map((i) => ({
-    id: i.id,
-    category: i.category as AuditCategory,
-    severity: i.severity as IssueSeverity,
-    ruleId: i.ruleId,
-    title: i.title,
-    description: i.description,
-    elementSelector: i.elementSelector ?? undefined,
-    elementHtml: i.elementHtml ?? undefined,
-    recommendation: i.recommendation ?? undefined,
-    viewportName: undefined, // derived from viewport result if needed
-    details: i.details as Record<string, unknown> | undefined,
-  }));
+  const issues: AuditIssue[] = issuesRaw.map((i) => {
+    const details = i.details as Record<string, unknown> | undefined;
+    return {
+      id: i.id,
+      category: i.category as AuditCategory,
+      severity: i.severity as IssueSeverity,
+      ruleId: i.ruleId,
+      title: i.title,
+      description: i.description,
+      elementSelector: i.elementSelector ?? undefined,
+      elementHtml: i.elementHtml ?? undefined,
+      recommendation: i.recommendation ?? undefined,
+      viewportName: undefined, // derived from viewport result if needed
+      helpUrl: (details?.helpUrl as string) ?? undefined,
+      wcagTags: (details?.wcagTags as string[]) ?? undefined,
+      details,
+    };
+  });
 
   // Attach viewport names to issues based on viewportResultId
   const vpResultIdToName = new Map(vpResultsRaw.map((vr) => [vr.id, vr.viewportName]));

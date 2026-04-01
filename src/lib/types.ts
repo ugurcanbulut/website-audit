@@ -71,6 +71,8 @@ export interface AuditIssue {
   elementHtml?: string;
   recommendation?: string;
   viewportName?: string;
+  helpUrl?: string;        // Link to documentation (from axe-core)
+  wcagTags?: string[];     // WCAG criteria tags (from axe-core)
   details?: Record<string, unknown>;
 }
 

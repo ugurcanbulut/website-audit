@@ -193,93 +193,190 @@ async function takeScreenshot(
   await fs.mkdir(dir, { recursive: true });
 
   const baseName = device.name.toLowerCase().replace(/\s+/g, "-");
-  // We'll save as JPEG for much smaller file sizes
-  const filename = `${baseName}.jpg`;
+  const filename = `${baseName}.webp`;
   const filepath = path.join(dir, filename);
 
-  // Hide fixed/sticky elements to prevent them repeating in full-page screenshot
-  // Use visibility:hidden instead of changing position (which breaks layouts)
-  await page.evaluate(() => {
-    const elements = document.querySelectorAll("*");
-    for (const el of Array.from(elements)) {
+  const viewportWidth = device.width;
+  const viewportHeight = device.height;
+
+  // 1. Identify fixed/sticky elements and classify as header vs footer
+  const fixedElements = await page.evaluate((vpHeight: number) => {
+    const elements: Array<{ selector: string; type: "header" | "footer" }> = [];
+    const allEls = document.querySelectorAll("*");
+    for (const el of Array.from(allEls)) {
       const style = window.getComputedStyle(el);
-      if (style.position === "fixed") {
-        (el as HTMLElement).dataset.uiAuditHidden = "true";
-        (el as HTMLElement).style.visibility = "hidden";
+      if (style.position === "fixed" || style.position === "sticky") {
+        const rect = el.getBoundingClientRect();
+        const isFooter = rect.top >= vpHeight * 0.5;
+        // Build a unique selector
+        let selector = "";
+        if (el.id) {
+          selector = `#${el.id}`;
+        } else {
+          selector = el.tagName.toLowerCase();
+          if (el.className && typeof el.className === "string") {
+            selector += "." + el.className.trim().split(/\s+/).slice(0, 2).join(".");
+          }
+        }
+        elements.push({ selector, type: isFooter ? "footer" : "header" });
       }
     }
-  });
+    return elements;
+  }, viewportHeight);
 
-  // Wait for video elements to have a frame ready
-  await page.evaluate(async () => {
-    const videos = Array.from(document.querySelectorAll("video"));
-    await Promise.all(
-      videos.map((video) => {
-        if (video.readyState >= 2) return;
-        return new Promise<void>((resolve) => {
-          video.addEventListener("loadeddata", () => resolve(), { once: true });
-          setTimeout(resolve, 5000);
-        });
-      })
-    );
-  });
-
-  // Get actual content height and cap it to prevent absurdly tall screenshots
+  // 2. Get real content height (strip min-height constraints)
   const contentHeight = await page.evaluate(() => {
-    const body = document.body;
     const html = document.documentElement;
-    return Math.max(
+    const body = document.body;
+    const origHtmlMin = html.style.minHeight;
+    const origBodyMin = body.style.minHeight;
+    html.style.minHeight = "0";
+    body.style.minHeight = "0";
+
+    // Force reflow
+    void html.offsetHeight;
+
+    const height = Math.max(
       body.scrollHeight, body.offsetHeight,
       html.clientHeight, html.scrollHeight, html.offsetHeight
     );
+
+    // Restore
+    html.style.minHeight = origHtmlMin;
+    body.style.minHeight = origBodyMin;
+    return height;
   });
 
-  // Cap at 8000 CSS pixels tall (reasonable for any page)
-  // This prevents 30K+ pixel tall images on long pages
-  const MAX_HEIGHT_CSS = 8000;
-  const needsClip = contentHeight > MAX_HEIGHT_CSS;
-
-  let buffer: Buffer;
-  if (needsClip) {
-    // Use clip to cap height (coordinates are in CSS pixels, Playwright scales internally)
-    buffer = await page.screenshot({
+  // If the page fits in one viewport, just take a simple screenshot
+  if (contentHeight <= viewportHeight * 1.1) {
+    const buffer = await page.screenshot({
       fullPage: false,
-      type: "jpeg",
-      quality: 80,
-      clip: { x: 0, y: 0, width: device.width, height: MAX_HEIGHT_CSS },
+      type: "png",
+      clip: { x: 0, y: 0, width: viewportWidth, height: Math.min(contentHeight, viewportHeight) },
     });
-  } else {
-    // Normal full-page capture
-    buffer = await page.screenshot({
-      fullPage: true,
-      type: "jpeg",
-      quality: 85,
-    });
+
+    // Convert to WebP with Sharp
+    const sharp = (await import(/* webpackIgnore: true */ "sharp")).default;
+    const webpBuffer = await sharp(buffer).webp({ quality: 80 }).toBuffer();
+    await fs.writeFile(filepath, webpBuffer);
+
+    const metadata = await sharp(webpBuffer).metadata();
+    return {
+      screenshotPath: `/api/screenshots/${scanId}/${filename}`,
+      screenshotWidth: metadata.width ?? viewportWidth,
+      screenshotHeight: metadata.height ?? contentHeight,
+    };
   }
 
-  // Restore hidden fixed elements
-  await page.evaluate(() => {
-    const hidden = document.querySelectorAll("[data-ui-audit-hidden]");
-    for (const el of Array.from(hidden)) {
-      (el as HTMLElement).style.visibility = "";
-      delete (el as HTMLElement).dataset.uiAuditHidden;
+  // 3. Scroll-and-stitch approach
+  const tiles: Buffer[] = [];
+  const totalTiles = Math.ceil(contentHeight / viewportHeight);
+  const maxTiles = 15; // Safety cap
+  const numTiles = Math.min(totalTiles, maxTiles);
+
+  // Helper to hide/show elements
+  async function setElementVisibility(selectors: string[], visible: boolean) {
+    await page.evaluate(({ sels, vis }: { sels: string[]; vis: boolean }) => {
+      for (const sel of sels) {
+        try {
+          const els = document.querySelectorAll(sel);
+          for (const el of Array.from(els)) {
+            (el as HTMLElement).style.visibility = vis ? "" : "hidden";
+          }
+        } catch { /* invalid selector, skip */ }
+      }
+    }, { sels: selectors, vis: visible });
+  }
+
+  const headerSelectors = fixedElements.filter(e => e.type === "header").map(e => e.selector);
+  const footerSelectors = fixedElements.filter(e => e.type === "footer").map(e => e.selector);
+  const allFixedSelectors = [...headerSelectors, ...footerSelectors];
+
+  for (let i = 0; i < numTiles; i++) {
+    const scrollY = i * viewportHeight;
+    const isFirst = i === 0;
+    const isLast = i === numTiles - 1;
+
+    // Scroll to position
+    await page.evaluate((y: number) => window.scrollTo(0, y), scrollY);
+    await page.waitForTimeout(150); // Let rendering settle
+
+    // Selective visibility
+    if (isFirst) {
+      // Show headers, hide footers
+      await setElementVisibility(headerSelectors, true);
+      await setElementVisibility(footerSelectors, false);
+    } else if (isLast) {
+      // Hide headers, show footers
+      await setElementVisibility(headerSelectors, false);
+      await setElementVisibility(footerSelectors, true);
+    } else {
+      // Hide all fixed elements
+      await setElementVisibility(allFixedSelectors, false);
     }
-  });
 
-  // Save as JPEG (much smaller than PNG for photos/screenshots)
-  const jpegFilename = `${device.name.toLowerCase().replace(/\s+/g, "-")}.jpg`;
-  const jpegFilepath = path.join(dir, jpegFilename);
-  await fs.writeFile(jpegFilepath, buffer);
+    // Calculate clip height for last tile (avoid whitespace)
+    const remainingHeight = contentHeight - scrollY;
+    const tileHeight = isLast ? Math.min(remainingHeight, viewportHeight) : viewportHeight;
 
-  // Calculate actual pixel dimensions (CSS pixels × deviceScaleFactor)
-  const scale = device.deviceScaleFactor ?? 1;
-  const screenshotWidth = Math.round(device.width * scale);
-  const screenshotHeight = Math.round((needsClip ? MAX_HEIGHT_CSS : contentHeight) * scale);
+    // Capture tile
+    const tile = await page.screenshot({
+      fullPage: false,
+      type: "png",
+      clip: { x: 0, y: 0, width: viewportWidth, height: tileHeight },
+    });
+    tiles.push(tile);
+  }
+
+  // Restore all element visibility
+  await setElementVisibility(allFixedSelectors, true);
+
+  // Scroll back to top
+  await page.evaluate(() => window.scrollTo(0, 0));
+
+  // 4. Stitch tiles with Sharp
+  const sharp = (await import(/* webpackIgnore: true */ "sharp")).default;
+
+  // Get actual tile dimensions (accounting for deviceScaleFactor)
+  const firstTileMeta = await sharp(tiles[0]).metadata();
+  const tilePixelWidth = firstTileMeta.width!;
+  const scale = tilePixelWidth / viewportWidth;
+
+  // Calculate total stitched height
+  let totalPixelHeight = 0;
+  const tileMetas = [];
+  for (const tile of tiles) {
+    const meta = await sharp(tile).metadata();
+    tileMetas.push(meta);
+    totalPixelHeight += meta.height!;
+  }
+
+  // Composite all tiles
+  let currentY = 0;
+  const composites: Array<{ input: Buffer; top: number; left: number }> = [];
+  for (let i = 0; i < tiles.length; i++) {
+    composites.push({ input: tiles[i], top: currentY, left: 0 });
+    currentY += tileMetas[i].height!;
+  }
+
+  const stitched = await sharp({
+    create: {
+      width: tilePixelWidth,
+      height: totalPixelHeight,
+      channels: 4,
+      background: { r: 255, g: 255, b: 255, alpha: 1 },
+    },
+  })
+    .composite(composites)
+    .webp({ quality: 80 })
+    .toBuffer();
+
+  await fs.writeFile(filepath, stitched);
 
   return {
     screenshotPath: `/api/screenshots/${scanId}/${filename}`,
-    screenshotWidth,
-    screenshotHeight,
+    screenshotWidth: tilePixelWidth,
+    screenshotHeight: totalPixelHeight,
   };
 }
 

@@ -14,6 +14,7 @@ export interface AuditIssueInput {
   elementSelector?: string;
   elementHtml?: string;
   recommendation?: string;
+  helpUrl?: string;
   details?: Record<string, unknown>;
 }
 
@@ -89,11 +90,13 @@ export function processAxeResults(input: AxeRunnerInput): AuditIssueInput[] {
         elementSelector: node.target[0],
         elementHtml: node.html,
         recommendation: node.failureSummary ?? undefined,
+        helpUrl: violation.helpUrl,
         details: {
+          viewport: viewportName,
           helpUrl: violation.helpUrl,
+          wcagTags: violation.tags.filter(t => t.startsWith("wcag")),
           impact: violation.impact,
           tags: violation.tags,
-          viewport: viewportName,
         },
       });
     }
@@ -114,8 +117,10 @@ export function processAxeResults(input: AxeRunnerInput): AuditIssueInput[] {
           recommendation:
             node.failureSummary ??
             "Manual review is required to determine if this element is accessible.",
+          helpUrl: item.helpUrl,
           details: {
             helpUrl: item.helpUrl,
+            wcagTags: (item as any).tags?.filter((t: string) => t.startsWith("wcag")) ?? [],
             impact: item.impact,
             incomplete: true,
             viewport: viewportName,
