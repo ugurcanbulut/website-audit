@@ -82,7 +82,13 @@ export function ViewportTabs({ viewportResults, issues, annotationsByViewport }:
             );
           })}
         </TabsList>
-        <Button variant="ghost" size="sm" onClick={() => setShowAnnotations(!showAnnotations)}>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => setShowAnnotations(!showAnnotations)}
+          aria-label={showAnnotations ? "Hide annotations" : "Show annotations"}
+          aria-expanded={showAnnotations}
+        >
           {showAnnotations ? <><EyeOff className="size-3.5 mr-1" />Hide</> : <><Eye className="size-3.5 mr-1" />Show</>}
         </Button>
       </div>
@@ -157,8 +163,11 @@ export function ViewportTabs({ viewportResults, issues, annotationsByViewport }:
                     <div
                       key={issue.id}
                       ref={(el) => { if (el) issueRefs.current.set(issue.id, el); }}
+                      tabIndex={0}
                       onMouseEnter={() => handleIssueHover(issue.id)}
                       onMouseLeave={() => handleIssueHover(null)}
+                      onFocus={() => handleIssueHover(issue.id)}
+                      onBlur={() => handleIssueHover(null)}
                     >
                       <IssueCard
                         issue={issue}

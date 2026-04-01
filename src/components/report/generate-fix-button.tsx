@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Wand2, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 
 interface GenerateFixButtonProps {
@@ -35,11 +36,14 @@ export function GenerateFixButton({
       });
       if (!res.ok) {
         const data = await res.json();
-        setError(data.error || "Failed to generate fix");
+        const errMsg = data.error || "Failed to generate fix";
+        setError(errMsg);
+        toast.error("Failed to generate fix");
         return;
       }
       const data = await res.json();
       setResult(data);
+      toast.success("Fix generated successfully");
       onFixGenerated?.({
         before: "",
         after: data.fixedHtml,
@@ -47,6 +51,7 @@ export function GenerateFixButton({
       });
     } catch {
       setError("Network error");
+      toast.error("Failed to generate fix");
     } finally {
       setLoading(false);
     }
@@ -78,6 +83,7 @@ export function GenerateFixButton({
         size="sm"
         onClick={handleGenerate}
         disabled={loading}
+        aria-label="Generate accessibility fix"
       >
         {loading ? (
           <>

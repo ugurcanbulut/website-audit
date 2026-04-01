@@ -1,6 +1,7 @@
 "use client";
 
 import type { AuditIssue, AuditCategory, CategoryScore } from "@/lib/types";
+import { CATEGORY_LABELS } from "@/lib/ui-constants";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { CategoryDetail } from "./category-detail";
 
@@ -9,22 +10,6 @@ const SEVERITY_ORDER: Record<string, number> = {
   warning: 1,
   info: 2,
   pass: 3,
-};
-
-const categoryLabels: Record<string, string> = {
-  accessibility: "Accessibility",
-  responsive: "Responsive",
-  performance: "Performance",
-  typography: "Typography",
-  "touch-targets": "Touch Targets",
-  forms: "Forms",
-  visual: "Visual",
-  seo: "SEO",
-  "best-practices": "Best Practices",
-  security: "Security",
-  "html-quality": "HTML Quality",
-  "css-quality": "CSS Quality",
-  "ai-analysis": "AI Analysis",
 };
 
 interface IssuesByCategoryProps {
@@ -67,7 +52,7 @@ export function IssuesByCategory({
             <TabsTrigger key={cs.category} value={cs.category} className="text-sm gap-1.5">
               {cs.issueCount.critical > 0 && <span className="size-2 rounded-full bg-red-500" />}
               {cs.issueCount.critical === 0 && cs.issueCount.warning > 0 && <span className="size-2 rounded-full bg-orange-500" />}
-              {categoryLabels[cs.category] ?? cs.category}
+              {CATEGORY_LABELS[cs.category] ?? cs.category}
               {totalIssues > 0 && (
                 <span className="ml-0.5 inline-flex items-center justify-center rounded-full bg-muted px-1.5 text-sm tabular-nums">
                   {totalIssues}

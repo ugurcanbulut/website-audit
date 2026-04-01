@@ -20,6 +20,7 @@ import {
 } from "@/components/ui/card";
 import { buttonVariants } from "@/lib/button-variants";
 import { cn } from "@/lib/utils";
+import { SCAN_STATUS_CONFIG, getGradeColor } from "@/lib/ui-constants";
 
 interface Scan {
   id: string;
@@ -34,18 +35,7 @@ interface RecentScansProps {
   scans: Scan[];
 }
 
-const statusConfig: Record<
-  string,
-  { label: string; variant: "default" | "secondary" | "destructive" | "outline" }
-> = {
-  pending: { label: "Pending", variant: "outline" },
-  scanning: { label: "Scanning", variant: "secondary" },
-  auditing: { label: "Auditing", variant: "secondary" },
-  analyzing: { label: "Analyzing", variant: "secondary" },
-  completed: { label: "Completed", variant: "default" },
-  failed: { label: "Failed", variant: "destructive" },
-  cancelled: { label: "Cancelled", variant: "outline" },
-};
+const statusConfig = SCAN_STATUS_CONFIG;
 
 function StatusIcon({ status }: { status: string }) {
   switch (status) {
@@ -81,22 +71,7 @@ function getHostname(url: string): string {
   }
 }
 
-function getGradeColor(grade: string): string {
-  switch (grade) {
-    case "A":
-      return "text-green-600 dark:text-green-400";
-    case "B":
-      return "text-blue-600 dark:text-blue-400";
-    case "C":
-      return "text-yellow-600 dark:text-yellow-400";
-    case "D":
-      return "text-orange-600 dark:text-orange-400";
-    case "F":
-      return "text-red-600 dark:text-red-400";
-    default:
-      return "text-muted-foreground";
-  }
-}
+
 
 export function RecentScans({ scans }: RecentScansProps) {
   if (scans.length === 0) {

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Urbanist } from "next/font/google";
 import { Geist_Mono } from "next/font/google";
 import { ThemeProvider } from "next-themes";
+import { Toaster } from "sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/layout/app-sidebar";
@@ -56,6 +57,7 @@ export default function RootLayout({
                 {children}
               </SidebarInset>
             </SidebarProvider>
+            <Toaster richColors position="bottom-right" />
           </TooltipProvider>
         </ThemeProvider>
       </body>

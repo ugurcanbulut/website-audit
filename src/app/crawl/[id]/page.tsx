@@ -73,7 +73,10 @@ export default async function CrawlPage({ params }: CrawlPageProps) {
 
   return (
     <>
-      <SiteHeader title="Crawl Results" />
+      <SiteHeader breadcrumbs={[
+        { label: "Dashboard", href: "/" },
+        { label: "Crawl Results" },
+      ]} />
       {isActive && <CrawlAutoRefresh />}
       <div className="flex flex-1 flex-col gap-4 p-4 lg:p-6">
         {/* Header row */}

@@ -8,6 +8,7 @@ import { DEFAULT_DEVICES } from "@/lib/scanner/devices";
 import type { AiProvider, BrowserEngine } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
+import { toast } from "sonner";
 import { DeviceSelector } from "@/components/scan/device-selector";
 import { Button } from "@/components/ui/button";
 import {
@@ -118,6 +119,7 @@ export function ScanForm() {
       }
 
       const { id } = (await res.json()) as { id: string };
+      toast.success("Scan started");
       router.push(`/scan/${id}`);
     } catch (err) {
       setSubmitError(
@@ -180,8 +182,9 @@ export function ScanForm() {
                 key={engine}
                 type="button"
                 onClick={() => setBrowserEngine(engine)}
+                aria-pressed={browserEngine === engine}
                 className={cn(
-                  "rounded-lg border p-3 text-center text-base transition-colors",
+                  "rounded-lg border p-3 text-center text-base transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
                   browserEngine === engine
                     ? "border-primary bg-primary/5 font-medium"
                     : "border-border hover:bg-muted/50"

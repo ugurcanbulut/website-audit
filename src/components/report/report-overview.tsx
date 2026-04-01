@@ -9,6 +9,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import type { CategoryScore, Grade } from "@/lib/types";
+import { CATEGORY_LABELS } from "@/lib/ui-constants";
 import { ScoreBadge } from "@/components/report/score-badge";
 import {
   Card,
@@ -26,30 +27,6 @@ function getGrade(score: number): Grade {
   if (score >= 70) return "C";
   if (score >= 60) return "D";
   return "F";
-}
-
-const categoryLabels: Record<string, string> = {
-  accessibility: "Accessibility",
-  responsive: "Responsive",
-  performance: "Performance",
-  typography: "Typography",
-  "touch-targets": "Touch Targets",
-  forms: "Forms",
-  visual: "Visual",
-  seo: "SEO",
-  "best-practices": "Best Practices",
-  security: "Security",
-  "html-quality": "HTML Quality",
-  "css-quality": "CSS Quality",
-  "ai-analysis": "AI Analysis",
-};
-
-function scoreColor(score: number): string {
-  if (score >= 90) return "text-green-600 dark:text-green-400";
-  if (score >= 80) return "text-blue-600 dark:text-blue-400";
-  if (score >= 70) return "text-yellow-600 dark:text-yellow-400";
-  if (score >= 60) return "text-orange-600 dark:text-orange-400";
-  return "text-red-600 dark:text-red-400";
 }
 
 interface ReportOverviewProps {
@@ -77,7 +54,7 @@ export function ReportOverview({
   browserEngine,
 }: ReportOverviewProps) {
   const radarData = categoryScores.map((cs) => ({
-    category: categoryLabels[cs.category] ?? cs.category,
+    category: CATEGORY_LABELS[cs.category] ?? cs.category,
     score: cs.score,
     fullMark: 100,
   }));
@@ -165,7 +142,7 @@ export function ReportOverview({
           <div className="grid gap-2 sm:grid-cols-2">
             {categoryScores.map((cs) => {
               const grade = getGrade(cs.score);
-              const label = categoryLabels[cs.category] ?? cs.category;
+              const label = CATEGORY_LABELS[cs.category] ?? cs.category;
               const totalIssues =
                 cs.issueCount.critical +
                 cs.issueCount.warning +

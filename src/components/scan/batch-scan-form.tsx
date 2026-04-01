@@ -21,6 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { toast } from "sonner";
 import { DeviceSelector } from "./device-selector";
 import { DEFAULT_DEVICES } from "@/lib/scanner/devices";
 import type { AiProvider, BrowserEngine } from "@/lib/types";
@@ -84,6 +85,7 @@ export function BatchScanForm() {
         return;
       }
       const batch = await res.json();
+      toast.success(`Batch scan started (${validUrls.length} URLs)`);
       router.push(`/scan/batch/${batch.id}`);
     } catch {
       setError("Network error");
@@ -114,6 +116,7 @@ export function BatchScanForm() {
           <textarea
             className="w-full min-h-[160px] rounded-lg border border-input bg-background px-3 py-2 text-base ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             placeholder={"https://example.com\nhttps://example.com/about\nhttps://example.com/contact"}
+            aria-label="URLs to scan, one per line"
             value={urlText}
             onChange={(e) => setUrlText(e.target.value)}
           />
@@ -144,8 +147,9 @@ export function BatchScanForm() {
                 key={engine}
                 type="button"
                 onClick={() => setBrowserEngine(engine)}
+                aria-pressed={browserEngine === engine}
                 className={cn(
-                  "rounded-lg border p-3 text-center text-base transition-colors",
+                  "rounded-lg border p-3 text-center text-base transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
                   browserEngine === engine
                     ? "border-primary bg-primary/5 font-medium"
                     : "border-border hover:bg-muted/50"

@@ -15,7 +15,10 @@ export default async function CrawlComparePage() {
 
   return (
     <>
-      <SiteHeader title="Compare Crawls" />
+      <SiteHeader breadcrumbs={[
+        { label: "Dashboard", href: "/" },
+        { label: "Compare Crawls" },
+      ]} />
       <div className="flex flex-1 flex-col gap-4 p-4 lg:p-6">
         <CrawlCompare
           crawls={allCrawls.map((c) => ({

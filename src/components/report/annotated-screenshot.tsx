@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { AnnotationOverlay } from "./annotation-overlay";
 import { ScreenshotGallery, ScreenshotThumbnail } from "./screenshot-gallery";
 import type { Annotation } from "@/lib/annotations/mapper";
+import { SEVERITY_COLORS } from "@/lib/ui-constants";
 
 interface AnnotatedScreenshotProps {
   screenshotPath: string;
@@ -100,12 +101,7 @@ export function AnnotatedScreenshot({
           {(() => {
             const ann = hoveredAnnotation ?? annotations.find(a => a.id === selectedId);
             if (!ann) return null;
-            const severityColor = {
-              critical: "text-red-600 dark:text-red-400",
-              warning: "text-amber-600 dark:text-amber-400",
-              info: "text-blue-600 dark:text-blue-400",
-              pass: "text-green-600 dark:text-green-400",
-            }[ann.severity] ?? "";
+            const severityColor = (SEVERITY_COLORS[ann.severity as keyof typeof SEVERITY_COLORS]?.text) ?? "";
             return (
               <div className="flex items-start gap-2">
                 <span className="inline-flex items-center justify-center rounded-full bg-muted size-6 text-sm font-bold shrink-0">

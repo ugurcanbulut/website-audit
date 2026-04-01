@@ -1,13 +1,6 @@
 import { cn } from "@/lib/utils";
 import type { Grade } from "@/lib/types";
-
-const gradeColors: Record<string, string> = {
-  A: "bg-green-100 text-green-800 border-green-200",
-  B: "bg-blue-100 text-blue-800 border-blue-200",
-  C: "bg-yellow-100 text-yellow-800 border-yellow-200",
-  D: "bg-orange-100 text-orange-800 border-orange-200",
-  F: "bg-red-100 text-red-800 border-red-200",
-};
+import { GRADE_BG_COLORS } from "@/lib/ui-constants";
 
 interface ScoreBadgeProps {
   score: number;
@@ -16,7 +9,7 @@ interface ScoreBadgeProps {
 }
 
 export function ScoreBadge({ score, grade, size = "sm" }: ScoreBadgeProps) {
-  const colors = gradeColors[grade] ?? gradeColors.C;
+  const colors = GRADE_BG_COLORS[grade] ?? GRADE_BG_COLORS.C;
 
   if (size === "lg") {
     return (

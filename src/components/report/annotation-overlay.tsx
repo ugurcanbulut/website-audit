@@ -1,30 +1,31 @@
 "use client";
 
 import type { Annotation } from "@/lib/annotations/mapper";
+import { SEVERITY_COLORS } from "@/lib/ui-constants";
 
 const severityStyles: Record<
   string,
   { stroke: string; fill: string; badge: string }
 > = {
   critical: {
-    stroke: "#ef4444",
-    fill: "rgba(239,68,68,0.12)",
-    badge: "bg-red-500",
+    stroke: SEVERITY_COLORS.critical.svg.stroke,
+    fill: SEVERITY_COLORS.critical.svg.fill,
+    badge: SEVERITY_COLORS.critical.dot,
   },
   warning: {
-    stroke: "#f59e0b",
-    fill: "rgba(245,158,11,0.10)",
-    badge: "bg-amber-500",
+    stroke: SEVERITY_COLORS.warning.svg.stroke,
+    fill: SEVERITY_COLORS.warning.svg.fill,
+    badge: SEVERITY_COLORS.warning.dot,
   },
   info: {
-    stroke: "#3b82f6",
-    fill: "rgba(59,130,246,0.08)",
-    badge: "bg-blue-500",
+    stroke: SEVERITY_COLORS.info.svg.stroke,
+    fill: SEVERITY_COLORS.info.svg.fill,
+    badge: SEVERITY_COLORS.info.dot,
   },
   pass: {
-    stroke: "#22c55e",
-    fill: "rgba(34,197,94,0.08)",
-    badge: "bg-green-500",
+    stroke: SEVERITY_COLORS.pass.svg.stroke,
+    fill: SEVERITY_COLORS.pass.svg.fill,
+    badge: SEVERITY_COLORS.pass.dot,
   },
 };
 
@@ -67,9 +68,15 @@ export function AnnotationOverlay({
           <g
             key={ann.id}
             className="pointer-events-auto cursor-pointer"
+            role="button"
+            aria-label={ann.title}
+            tabIndex={0}
             onClick={() => onAnnotationClick?.(ann)}
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onAnnotationClick?.(ann); } }}
             onMouseEnter={() => onAnnotationHover?.(ann)}
             onMouseLeave={() => onAnnotationHover?.(null)}
+            onFocus={() => onAnnotationHover?.(ann)}
+            onBlur={() => onAnnotationHover?.(null)}
           >
             {/* Highlight rectangle */}
             <rect

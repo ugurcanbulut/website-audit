@@ -4,18 +4,11 @@ import { useState } from "react";
 import { ChevronRight, ChevronDown, FileText, Folder, FolderOpen } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { getHttpStatusColor } from "@/lib/ui-constants";
 import type { SiteTreeNode } from "@/lib/crawler/site-tree";
 
 interface SiteTreeProps {
   tree: SiteTreeNode;
-}
-
-function statusColor(code: number | undefined): string {
-  if (!code) return "text-muted-foreground";
-  if (code >= 200 && code < 300) return "text-green-600 dark:text-green-400";
-  if (code >= 300 && code < 400) return "text-blue-600 dark:text-blue-400";
-  if (code >= 400 && code < 500) return "text-amber-600 dark:text-amber-400";
-  return "text-red-600 dark:text-red-400";
 }
 
 function TreeNode({ node, depth = 0 }: { node: SiteTreeNode; depth?: number }) {
@@ -27,8 +20,9 @@ function TreeNode({ node, depth = 0 }: { node: SiteTreeNode; depth?: number }) {
     <div>
       <button
         onClick={() => hasChildren && setExpanded(!expanded)}
+        {...(hasChildren ? { "aria-expanded": expanded } : {})}
         className={cn(
-          "w-full flex items-center gap-1.5 py-1 px-2 text-left text-base hover:bg-muted/50 rounded transition-colors",
+          "w-full flex items-center gap-1.5 py-1 px-2 text-left text-base hover:bg-muted/50 rounded transition-colors focus-visible:ring-2 focus-visible:ring-ring",
           isPage && "font-medium",
         )}
         style={{ paddingLeft: `${depth * 20 + 8}px` }}
@@ -52,7 +46,7 @@ function TreeNode({ node, depth = 0 }: { node: SiteTreeNode; depth?: number }) {
 
         {/* Status code */}
         {node.statusCode && (
-          <span className={cn("text-sm tabular-nums shrink-0", statusColor(node.statusCode))}>
+          <span className={cn("text-sm tabular-nums shrink-0", getHttpStatusColor(node.statusCode))}>
             {node.statusCode}
           </span>
         )}

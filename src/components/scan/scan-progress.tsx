@@ -84,9 +84,9 @@ export function ScanProgress({ scanId, viewportNames }: ScanProgressProps) {
                 {Math.round(progress)}%
               </span>
               {latestEvent && (
-                <span className="text-muted-foreground truncate ml-4">
+                <div aria-live="polite" aria-atomic="true" className="text-muted-foreground truncate ml-4">
                   {latestEvent.data.message}
-                </span>
+                </div>
               )}
             </div>
             <Progress value={progress} />

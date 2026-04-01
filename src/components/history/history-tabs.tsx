@@ -22,7 +22,9 @@ import {
   Card,
   CardContent,
 } from "@/components/ui/card";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { SCAN_STATUS_CONFIG, getGradeColor } from "@/lib/ui-constants";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -69,15 +71,9 @@ const statusConfig: Record<
   string,
   { label: string; variant: "default" | "secondary" | "destructive" | "outline" }
 > = {
-  pending: { label: "Pending", variant: "outline" },
-  scanning: { label: "Scanning", variant: "secondary" },
-  auditing: { label: "Auditing", variant: "secondary" },
-  analyzing: { label: "Analyzing", variant: "secondary" },
+  ...SCAN_STATUS_CONFIG,
   running: { label: "Running", variant: "secondary" },
   crawling: { label: "Crawling", variant: "secondary" },
-  completed: { label: "Completed", variant: "default" },
-  failed: { label: "Failed", variant: "destructive" },
-  cancelled: { label: "Cancelled", variant: "outline" },
 };
 
 function StatusIcon({ status }: { status: string }) {
@@ -116,23 +112,6 @@ function getHostname(url: string): string {
   }
 }
 
-function getGradeColor(grade: string): string {
-  switch (grade) {
-    case "A":
-      return "text-green-600 dark:text-green-400";
-    case "B":
-      return "text-blue-600 dark:text-blue-400";
-    case "C":
-      return "text-yellow-600 dark:text-yellow-400";
-    case "D":
-      return "text-orange-600 dark:text-orange-400";
-    case "F":
-      return "text-red-600 dark:text-red-400";
-    default:
-      return "text-muted-foreground";
-  }
-}
-
 // ── Delete Button ────────────────────────────────────────────────────────────
 
 function DeleteButton({
@@ -153,6 +132,7 @@ function DeleteButton({
     setDeleting(true);
     try {
       await fetch(endpoint, { method: "DELETE" });
+      toast.success("Deleted successfully");
       router.refresh();
     } finally {
       setDeleting(false);
@@ -162,9 +142,10 @@ function DeleteButton({
   return (
     <Button
       variant="ghost"
-      size="icon-sm"
+      size="icon"
       onClick={handleDelete}
       disabled={deleting}
+      aria-label={`Delete ${label}`}
       className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
     >
       <Trash2 className="size-3.5" />

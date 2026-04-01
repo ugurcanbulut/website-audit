@@ -74,7 +74,10 @@ export default async function BatchPage({ params }: BatchPageProps) {
 
   return (
     <>
-      <SiteHeader title={batch.name ?? "Batch Scan"} />
+      <SiteHeader breadcrumbs={[
+        { label: "Dashboard", href: "/" },
+        { label: "Batch Scan" },
+      ]} />
       <div className="flex flex-1 flex-col gap-4 p-4 lg:p-6">
         {/* Progress */}
         {!isComplete && (

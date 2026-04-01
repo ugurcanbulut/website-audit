@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { AuditIssue, AuditCategory, IssueSeverity, Grade } from "@/lib/types";
+import { CATEGORY_LABELS } from "@/lib/ui-constants";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { IssueCard } from "@/components/report/issue-card";
 import { ScoreBadge } from "@/components/report/score-badge";
@@ -20,22 +21,6 @@ function getGrade(score: number): Grade {
   if (score >= 60) return "D";
   return "F";
 }
-
-const categoryLabels: Record<string, string> = {
-  accessibility: "Accessibility",
-  responsive: "Responsive Design",
-  performance: "Performance",
-  typography: "Typography",
-  "touch-targets": "Touch Targets",
-  forms: "Forms",
-  visual: "Visual",
-  seo: "SEO",
-  "best-practices": "Best Practices",
-  security: "Security",
-  "html-quality": "HTML Quality",
-  "css-quality": "CSS Quality",
-  "ai-analysis": "AI Analysis",
-};
 
 interface CategoryDetailProps {
   category: AuditCategory;
@@ -58,7 +43,7 @@ export function CategoryDetail({
 }: CategoryDetailProps) {
   const [filter, setFilter] = useState<FilterSeverity>("all");
   const grade = getGrade(score);
-  const label = categoryLabels[category] ?? category;
+  const label = CATEGORY_LABELS[category] ?? category;
 
   const filteredIssues = (
     filter === "all" ? issues : issues.filter((i) => i.severity === filter)

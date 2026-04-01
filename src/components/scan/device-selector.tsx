@@ -55,6 +55,7 @@ export function DeviceSelector({ selected, onChange }: DeviceSelectorProps) {
         <button
           type="button"
           onClick={allSelected ? deselectAll : selectAll}
+          aria-label={allSelected ? "Deselect all devices" : "Select all devices"}
           className="text-sm text-primary hover:underline"
         >
           {allSelected ? "Deselect all" : "Select all"}
@@ -80,8 +81,9 @@ export function DeviceSelector({ selected, onChange }: DeviceSelectorProps) {
                     key={device.name}
                     type="button"
                     onClick={() => toggle(device.name)}
+                    aria-pressed={isSelected}
                     className={cn(
-                      "flex items-center gap-3 rounded-lg border p-3 text-left text-base transition-colors",
+                      "flex items-center gap-3 rounded-lg border p-3 text-left text-base transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
                       isSelected
                         ? "border-primary bg-primary/5"
                         : "border-border hover:bg-muted/50"

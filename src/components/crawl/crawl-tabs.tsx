@@ -29,6 +29,7 @@ import {
 
 import { findDuplicateClusters } from "@/lib/crawler/simhash";
 import { buildSiteTree } from "@/lib/crawler/site-tree";
+import { getHttpStatusColor } from "@/lib/ui-constants";
 import { SiteTree } from "./site-tree";
 
 // ---------------------------------------------------------------------------
@@ -105,10 +106,7 @@ type SortDir = "asc" | "desc";
 
 function statusColor(code: number | null): string {
   if (!code) return "text-muted-foreground";
-  if (code >= 200 && code < 300) return "text-green-600 dark:text-green-400";
-  if (code >= 300 && code < 400) return "text-blue-600 dark:text-blue-400";
-  if (code >= 400 && code < 500) return "text-amber-600 dark:text-amber-400";
-  return "text-red-600 dark:text-red-400";
+  return getHttpStatusColor(code);
 }
 
 function statusBadgeVariant(

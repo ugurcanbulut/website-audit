@@ -1,5 +1,6 @@
 import { cn } from "@/lib/utils";
 import type { AuditIssue } from "@/lib/types";
+import { SEVERITY_COLORS } from "@/lib/ui-constants";
 import {
   Card,
   CardContent,
@@ -15,26 +16,26 @@ const severityConfig: Record<
   { color: string; bgColor: string; icon: typeof AlertTriangle; label: string }
 > = {
   critical: {
-    color: "text-red-700 dark:text-red-400",
-    bgColor: "bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800",
+    color: SEVERITY_COLORS.critical.icon,
+    bgColor: SEVERITY_COLORS.critical.badge,
     icon: AlertCircle,
     label: "Critical",
   },
   warning: {
-    color: "text-yellow-700 dark:text-yellow-400",
-    bgColor: "bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-300 dark:border-yellow-800",
+    color: SEVERITY_COLORS.warning.icon,
+    bgColor: SEVERITY_COLORS.warning.badge,
     icon: AlertTriangle,
     label: "Warning",
   },
   info: {
-    color: "text-blue-700 dark:text-blue-400",
-    bgColor: "bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800",
+    color: SEVERITY_COLORS.info.icon,
+    bgColor: SEVERITY_COLORS.info.badge,
     icon: Info,
     label: "Info",
   },
   pass: {
-    color: "text-green-700 dark:text-green-400",
-    bgColor: "bg-green-100 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-800",
+    color: SEVERITY_COLORS.pass.icon,
+    bgColor: SEVERITY_COLORS.pass.badge,
     icon: Info,
     label: "Pass",
   },
@@ -79,6 +80,8 @@ export function IssueCard({ issue, annotationNumber, isHighlighted, elementScree
         <div className="flex items-start gap-3">
           {annotationNumber != null && (
             <span
+              role="img"
+              aria-label={`Annotation ${annotationNumber}`}
               className={cn(
                 "inline-flex items-center justify-center rounded-full size-6 text-sm font-bold shrink-0 mt-0.5",
                 annotationBadgeColor[issue.severity] ?? "bg-blue-500 text-white",

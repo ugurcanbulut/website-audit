@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 
 export function DeleteScanInline({ scanId }: { scanId: string }) {
@@ -17,6 +18,7 @@ export function DeleteScanInline({ scanId }: { scanId: string }) {
     setDeleting(true);
     try {
       await fetch(`/api/scans/${scanId}`, { method: "DELETE" });
+      toast.success("Scan deleted");
       router.refresh();
     } finally {
       setDeleting(false);
@@ -26,9 +28,10 @@ export function DeleteScanInline({ scanId }: { scanId: string }) {
   return (
     <Button
       variant="ghost"
-      size="icon-sm"
+      size="icon"
       onClick={handleDelete}
       disabled={deleting}
+      aria-label="Delete scan"
       className="opacity-0 group-hover:opacity-100 transition-opacity text-muted-foreground hover:text-destructive"
     >
       <Trash2 className="size-3.5" />

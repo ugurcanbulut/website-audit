@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -101,6 +102,7 @@ export function CrawlForm() {
       }
 
       const crawl = (await res.json()) as { id: string };
+      toast.success("Crawl started");
       router.push(`/crawl/${crawl.id}`);
     } catch (err) {
       setSubmitError(

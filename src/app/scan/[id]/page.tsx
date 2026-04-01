@@ -70,7 +70,10 @@ export default async function ScanDetailPage({ params }: ScanDetailPageProps) {
   ) {
     return (
       <>
-        <SiteHeader title="Scan in Progress" />
+        <SiteHeader breadcrumbs={[
+          { label: "Dashboard", href: "/" },
+          { label: "Scan in Progress" },
+        ]} />
         <div className="flex flex-1 flex-col gap-4 p-4 lg:p-6">
           <div className="max-w-2xl">
             <p className="text-muted-foreground break-all">{scan.url}</p>
@@ -86,7 +89,10 @@ export default async function ScanDetailPage({ params }: ScanDetailPageProps) {
     const title = status === "cancelled" ? "Scan Cancelled" : "Scan Failed";
     return (
       <>
-        <SiteHeader title={title} />
+        <SiteHeader breadcrumbs={[
+          { label: "Dashboard", href: "/" },
+          { label: title },
+        ]} />
         <div className="flex flex-1 flex-col gap-4 p-4 lg:p-6">
           <div className="max-w-2xl">
             <div className="flex items-start justify-between gap-4 mb-6">
@@ -270,7 +276,10 @@ export default async function ScanDetailPage({ params }: ScanDetailPageProps) {
 
   return (
     <>
-      <SiteHeader title="Scan Results" />
+      <SiteHeader breadcrumbs={[
+        { label: "Dashboard", href: "/" },
+        { label: "Scan Results" },
+      ]} />
       <div className="flex flex-1 flex-col gap-4 p-4 lg:p-6">
         <div className="flex items-start justify-between gap-4">
           <p className="text-muted-foreground break-all">{scan.url}</p>

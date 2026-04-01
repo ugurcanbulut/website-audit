@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
+import { getLighthouseTextColor, getScoreBgColor, getLighthouseColor } from "@/lib/ui-constants";
 
 interface LighthouseReportProps {
   desktopLhr?: Record<string, unknown>;
@@ -35,35 +36,23 @@ function getLhrData(lhr: Record<string, unknown>) {
   return { categories, audits };
 }
 
-function scoreColor(score: number): string {
-  if (score >= 90) return "text-green-500";
-  if (score >= 50) return "text-orange-500";
-  return "text-red-500";
-}
-
-function scoreBg(score: number): string {
-  if (score >= 90) return "bg-green-500/10";
-  if (score >= 50) return "bg-orange-500/10";
-  return "bg-red-500/10";
-}
-
 function ScoreGauge({ score, label }: { score: number; label: string }) {
   const size = 72;
   const strokeWidth = 5;
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
   const offset = circumference - (score / 100) * circumference;
-  const color = score >= 90 ? "#22c55e" : score >= 50 ? "#f97316" : "#ef4444";
+  const color = getLighthouseColor(score);
 
   return (
     <div className="flex flex-col items-center gap-1">
-      <div className="relative" style={{ width: size, height: size }}>
-        <svg width={size} height={size} className="transform -rotate-90">
+      <div className="relative" style={{ width: size, height: size }} role="img" aria-label={`${label}: ${score} out of 100`}>
+        <svg width={size} height={size} className="transform -rotate-90" aria-hidden="true">
           <circle cx={size/2} cy={size/2} r={radius} fill="none" stroke="currentColor" strokeWidth={strokeWidth} className="text-muted/20" />
           <circle cx={size/2} cy={size/2} r={radius} fill="none" stroke={color} strokeWidth={strokeWidth} strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={offset} />
         </svg>
         <div className="absolute inset-0 flex items-center justify-center">
-          <span className={cn("text-lg font-bold tabular-nums", scoreColor(score))}>{score}</span>
+          <span className={cn("text-lg font-bold tabular-nums", getLighthouseTextColor(score))}>{score}</span>
         </div>
       </div>
       <span className="text-sm text-muted-foreground">{label}</span>
@@ -74,7 +63,7 @@ function ScoreGauge({ score, label }: { score: number; label: string }) {
 function MetricCard({ name, value, unit, score }: { name: string; value: string; unit?: string; score: number | null }) {
   const s = score !== null ? Math.round(score * 100) : null;
   return (
-    <div className={cn("rounded-lg border p-3", s !== null ? scoreBg(s) : "")}>
+    <div className={cn("rounded-lg border p-3", s !== null ? getScoreBgColor(s) : "")}>
       <p className="text-sm text-muted-foreground">{name}</p>
       <p className="text-xl font-bold tabular-nums">
         {value}
@@ -101,6 +90,8 @@ function AuditItem({ audit, savings }: {
     <div className="border rounded-lg">
       <button
         onClick={() => setExpanded(!expanded)}
+        aria-expanded={expanded}
+        aria-label="Expand audit details"
         className="w-full flex items-center gap-3 p-3 text-left hover:bg-muted/50 transition-colors"
       >
         {s !== null && s === 0 ? (
@@ -289,7 +280,7 @@ function LhrView({ lhr }: { lhr: Record<string, unknown> }) {
       {/* Passed Audits */}
       {passed.length > 0 && (
         <div>
-          <button onClick={() => setShowPassed(!showPassed)} className="flex items-center gap-2 text-base font-semibold hover:underline">
+          <button onClick={() => setShowPassed(!showPassed)} aria-expanded={showPassed} aria-label="Toggle passed audits" className="flex items-center gap-2 text-base font-semibold hover:underline">
             {showPassed ? <ChevronDown className="size-4" /> : <ChevronRight className="size-4" />}
             Passed Audits ({passed.length})
           </button>

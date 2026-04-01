@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { getLighthouseTextColor, getLighthouseColor } from "@/lib/ui-constants";
 
 interface LighthouseGaugesProps {
   scores: {
@@ -7,18 +8,6 @@ interface LighthouseGaugesProps {
     bestPractices?: number;
     seo?: number;
   };
-}
-
-function getScoreColor(score: number): string {
-  if (score >= 90) return "text-green-500";
-  if (score >= 50) return "text-orange-500";
-  return "text-red-500";
-}
-
-function getStrokeColor(score: number): string {
-  if (score >= 90) return "#22c55e";
-  if (score >= 50) return "#f97316";
-  return "#ef4444";
 }
 
 function ScoreGauge({ score, label }: { score: number; label: string }) {
@@ -48,7 +37,7 @@ function ScoreGauge({ score, label }: { score: number; label: string }) {
             cy={size / 2}
             r={radius}
             fill="none"
-            stroke={getStrokeColor(score)}
+            stroke={getLighthouseColor(score)}
             strokeWidth={strokeWidth}
             strokeLinecap="round"
             strokeDasharray={circumference}
@@ -57,7 +46,7 @@ function ScoreGauge({ score, label }: { score: number; label: string }) {
           />
         </svg>
         <div className="absolute inset-0 flex items-center justify-center">
-          <span className={cn("text-xl font-bold tabular-nums", getScoreColor(score))}>
+          <span className={cn("text-xl font-bold tabular-nums", getLighthouseTextColor(score))}>
             {score}
           </span>
         </div>

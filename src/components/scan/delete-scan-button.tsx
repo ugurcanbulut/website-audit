@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 
 interface DeleteScanButtonProps {
@@ -22,6 +23,7 @@ export function DeleteScanButton({ scanId }: DeleteScanButtonProps) {
     try {
       const res = await fetch(`/api/scans/${scanId}`, { method: "DELETE" });
       if (res.ok) {
+        toast.success("Scan deleted successfully");
         router.push("/");
       }
     } finally {
