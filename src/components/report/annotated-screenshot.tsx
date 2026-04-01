@@ -15,6 +15,8 @@ interface AnnotatedScreenshotProps {
   height: number;
   annotations: Annotation[];
   galleryId: string;
+  screenshotWidth?: number;
+  screenshotHeight?: number;
 }
 
 export function AnnotatedScreenshot({
@@ -24,13 +26,16 @@ export function AnnotatedScreenshot({
   height,
   annotations,
   galleryId,
+  screenshotWidth: storedScreenshotWidth,
+  screenshotHeight: storedScreenshotHeight,
 }: AnnotatedScreenshotProps) {
   const [showAnnotations, setShowAnnotations] = useState(true);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [hoveredAnnotation, setHoveredAnnotation] = useState<Annotation | null>(null);
 
-  // Estimate document height (full page screenshots are taller than viewport)
-  const estimatedDocHeight = height * 6;
+  // Use stored dimensions if available, otherwise fall back to estimates
+  const estimatedWidth = storedScreenshotWidth ?? width * 2;
+  const estimatedDocHeight = storedScreenshotHeight ?? height * 6;
 
   return (
     <div className="space-y-3">
@@ -71,13 +76,13 @@ export function AnnotatedScreenshot({
             src={screenshotPath}
             alt={`Screenshot at ${viewportName}`}
             className="w-full h-auto object-contain"
-            estimatedWidth={width * 2}
+            estimatedWidth={estimatedWidth}
             estimatedHeight={estimatedDocHeight}
           />
           {showAnnotations && annotations.length > 0 && (
             <AnnotationOverlay
               annotations={annotations}
-              screenshotWidth={width}
+              screenshotWidth={estimatedWidth}
               screenshotHeight={estimatedDocHeight}
               selectedId={selectedId}
               onAnnotationClick={(ann) => {

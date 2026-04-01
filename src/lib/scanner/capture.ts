@@ -11,6 +11,8 @@ export interface CaptureResult {
   screenshotPath: string;
   domSnapshot: DomSnapshot;
   performanceMetrics: PerformanceMetrics;
+  screenshotWidth?: number;
+  screenshotHeight?: number;
   // New in v2:
   axeResults?: unknown;                    // AxeResults from @axe-core/playwright
   responseHeaders?: Record<string, string>; // HTTP response headers
@@ -119,11 +121,12 @@ export async function captureViewport(
     // Collect performance metrics
     const performanceMetrics = await collectPerformanceMetrics(page, cdp);
 
-    // Take full-page screenshot
-    const screenshotPath = await takeScreenshot(page, scanId, device);
-
-    // Capture DOM snapshot
+    // Capture DOM snapshot BEFORE screenshot (screenshot modifies sticky positioning)
     const domSnapshot = await captureDomSnapshot(page, device);
+
+    // Take full-page screenshot (handles sticky removal, video wait, and dimension capture)
+    const { screenshotPath, screenshotWidth, screenshotHeight } =
+      await takeScreenshot(page, scanId, device);
 
     // Run axe-core accessibility analysis
     let axeResults: unknown = null;
@@ -169,6 +172,8 @@ export async function captureViewport(
       screenshotPath,
       domSnapshot,
       performanceMetrics,
+      screenshotWidth,
+      screenshotHeight,
       axeResults,
       responseHeaders,
       pageHtml,
@@ -183,21 +188,76 @@ async function takeScreenshot(
   page: Page,
   scanId: string,
   device: DevicePreset
-): Promise<string> {
+): Promise<{ screenshotPath: string; screenshotWidth: number; screenshotHeight: number }> {
   const dir = path.join(SCREENSHOTS_DIR, scanId);
   await fs.mkdir(dir, { recursive: true });
 
   const filename = `${device.name.toLowerCase().replace(/\s+/g, "-")}.png`;
   const filepath = path.join(dir, filename);
 
-  await page.screenshot({
-    path: filepath,
-    fullPage: true,
-    type: "png",
+  // Remove sticky/fixed positioning for clean full-page capture
+  await page.evaluate(() => {
+    const elements = document.querySelectorAll('*');
+    for (const el of Array.from(elements)) {
+      const style = window.getComputedStyle(el);
+      if (style.position === 'fixed' || style.position === 'sticky') {
+        (el as HTMLElement).style.position = 'absolute';
+      }
+    }
   });
 
+  // Wait for video elements to load
+  await page.evaluate(async () => {
+    const videos = Array.from(document.querySelectorAll('video'));
+    await Promise.all(
+      videos.map((video) => {
+        if (video.readyState >= 2) return; // HAVE_CURRENT_DATA
+        return new Promise<void>((resolve) => {
+          video.addEventListener('loadeddata', () => resolve(), { once: true });
+          // Don't wait more than 5 seconds per video
+          setTimeout(resolve, 5000);
+        });
+      })
+    );
+  });
+
+  // Get actual content height to avoid excess whitespace
+  const contentHeight = await page.evaluate(() => {
+    const body = document.body;
+    const html = document.documentElement;
+    return Math.max(
+      body.scrollHeight, body.offsetHeight,
+      html.clientHeight, html.scrollHeight, html.offsetHeight
+    );
+  });
+
+  // Cap at 10x viewport height to prevent extremely tall screenshots
+  const maxHeight = device.height * 10;
+  const clippedHeight = Math.min(contentHeight, maxHeight);
+
+  // Take screenshot into buffer first to read dimensions
+  const buffer = await page.screenshot({
+    fullPage: false,
+    type: "png",
+    clip: {
+      x: 0,
+      y: 0,
+      width: device.width,
+      height: clippedHeight,
+    },
+  });
+  await fs.writeFile(filepath, buffer);
+
+  // PNG dimensions are stored in bytes 16-23 of the header
+  const width = buffer.readUInt32BE(16);
+  const height = buffer.readUInt32BE(20);
+
   // Return API path for serving (standalone doesn't serve runtime public files)
-  return `/api/screenshots/${scanId}/${filename}`;
+  return {
+    screenshotPath: `/api/screenshots/${scanId}/${filename}`,
+    screenshotWidth: width,
+    screenshotHeight: height,
+  };
 }
 
 async function collectPerformanceMetrics(

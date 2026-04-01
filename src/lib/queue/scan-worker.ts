@@ -70,6 +70,8 @@ async function processScanJob(data: ScanJobData): Promise<void> {
         responseHeaders: result.responseHeaders ?? null,
         pageHtml: result.pageHtml ?? null,
         pageCss: result.pageCss ?? null,
+        screenshotWidth: result.screenshotWidth ?? null,
+        screenshotHeight: result.screenshotHeight ?? null,
       });
 
       publishScanEvent(scanId, {

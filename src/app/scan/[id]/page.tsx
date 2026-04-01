@@ -136,6 +136,8 @@ export default async function ScanDetailPage({ params }: ScanDetailPageProps) {
     height: vr.height,
     screenshotPath: vr.screenshotPath,
     performanceMetrics: vr.performanceMetrics as ViewportResult["performanceMetrics"],
+    screenshotWidth: vr.screenshotWidth ?? undefined,
+    screenshotHeight: vr.screenshotHeight ?? undefined,
   }));
 
   const catScores: CategoryScore[] = catScoresRaw.map((cs) => ({

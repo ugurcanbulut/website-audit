@@ -111,6 +111,8 @@ export interface ViewportResult {
   height: number;
   screenshotPath: string;
   performanceMetrics?: PerformanceMetrics;
+  screenshotWidth?: number;
+  screenshotHeight?: number;
 }
 
 // Performance metrics

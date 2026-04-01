@@ -79,6 +79,8 @@ export const viewportResults = pgTable('viewport_results', {
   pageHtml: text('page_html'),
   pageCss: text('page_css'),
   lighthouseJson: jsonb('lighthouse_json'),
+  screenshotWidth: integer('screenshot_width'),
+  screenshotHeight: integer('screenshot_height'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 });
 

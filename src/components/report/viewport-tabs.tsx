@@ -85,6 +85,8 @@ export function ViewportTabs({ viewportResults, issues, annotationsByViewport }:
                 height={vr.height}
                 annotations={annotationsByViewport?.[vr.viewportName] ?? []}
                 galleryId={`screenshots-vp-${vr.viewportName.replace(/\s+/g, "-")}`}
+                screenshotWidth={vr.screenshotWidth}
+                screenshotHeight={vr.screenshotHeight}
               />
 
               {/* Issues for this viewport */}
