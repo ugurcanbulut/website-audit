@@ -7,7 +7,9 @@ import {
   Ban,
   Monitor,
   ArrowRight,
+  Trash2,
 } from "lucide-react";
+import { DeleteScanInline } from "@/components/scan/delete-scan-inline";
 import { Badge } from "@/components/ui/badge";
 import {
   Card,
@@ -140,6 +142,7 @@ export function RecentScans({ scans }: RecentScansProps) {
                 <th className="pb-2 pr-4 text-left font-medium">Status</th>
                 <th className="pb-2 pr-4 text-left font-medium">Score</th>
                 <th className="pb-2 text-left font-medium">Date</th>
+                <th className="pb-2 text-right font-medium"></th>
               </tr>
             </thead>
             <tbody>
@@ -187,6 +190,9 @@ export function RecentScans({ scans }: RecentScansProps) {
                     </td>
                     <td className="py-3 whitespace-nowrap text-muted-foreground">
                       {formatDate(scan.createdAt)}
+                    </td>
+                    <td className="py-3 text-right">
+                      <DeleteScanInline scanId={scan.id} />
                     </td>
                   </tr>
                 );

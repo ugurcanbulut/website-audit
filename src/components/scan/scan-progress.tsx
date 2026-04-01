@@ -78,17 +78,19 @@ export function ScanProgress({ scanId, viewportNames }: ScanProgressProps) {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <Progress value={progress}>
-            <span className="text-base font-medium tabular-nums">
-              {Math.round(progress)}%
-            </span>
-          </Progress>
-
-          {latestEvent && (
-            <p className="text-base text-muted-foreground">
-              {latestEvent.data.message}
-            </p>
-          )}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-base">
+              <span className="font-medium tabular-nums">
+                {Math.round(progress)}%
+              </span>
+              {latestEvent && (
+                <span className="text-muted-foreground truncate ml-4">
+                  {latestEvent.data.message}
+                </span>
+              )}
+            </div>
+            <Progress value={progress} />
+          </div>
 
           {!isConnected && !isComplete && (
             <p className="text-base text-amber-600">

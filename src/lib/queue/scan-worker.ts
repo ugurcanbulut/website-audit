@@ -101,7 +101,7 @@ async function processScanJob(data: ScanJobData): Promise<void> {
     // NOW close browser (Lighthouse is done)
     await closeBrowser(session);
 
-    // Run AI analysis if enabled (no browser needed)
+    // Run AI analysis if enabled (no browser needed) -- non-fatal
     if (aiEnabled && aiProvider) {
       await db.update(scans).set({ status: "analyzing" }).where(eq(scans.id, scanId));
       publishScanEvent(scanId, {
@@ -109,13 +109,21 @@ async function processScanJob(data: ScanJobData): Promise<void> {
         data: { scanId, message: `Running AI analysis with ${aiProvider}...`, progress: 70 },
       });
 
-      const { runAiAnalysis } = await import("@/lib/ai/provider");
-      await runAiAnalysis(scanId, aiProvider);
-
-      publishScanEvent(scanId, {
-        type: "ai_progress",
-        data: { scanId, message: "AI analysis completed", progress: 85 },
-      });
+      try {
+        const { runAiAnalysis } = await import("@/lib/ai/provider");
+        await runAiAnalysis(scanId, aiProvider);
+        publishScanEvent(scanId, {
+          type: "ai_progress",
+          data: { scanId, message: "AI analysis completed", progress: 85 },
+        });
+      } catch (aiError) {
+        const aiMsg = aiError instanceof Error ? aiError.message : "Unknown AI error";
+        console.warn(`AI analysis failed (non-fatal): ${aiMsg}`);
+        publishScanEvent(scanId, {
+          type: "ai_progress",
+          data: { scanId, message: `AI analysis skipped: ${aiMsg}`, progress: 85 },
+        });
+      }
     }
 
     // Calculate scores

@@ -1,8 +1,7 @@
+import type { Browser } from "playwright";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { crawls, crawlPages } from "@/lib/db/schema";
-import { launchBrowser, closeBrowser } from "@/lib/scanner/browser";
-import type { BrowserSession } from "@/lib/scanner/browser";
 import { parseRobotsTxt, isPathAllowed, type RobotsRules } from "./robots";
 import { parseSitemapUrls } from "./sitemap";
 import { extractPageData } from "./extractor";
@@ -18,12 +17,17 @@ export async function runCrawl(crawlId: string): Promise<void> {
   const seedUrl = new URL(crawl.seedUrl);
   const seedOrigin = seedUrl.origin;
 
-  let session: BrowserSession | null = null;
+  // Launch an ISOLATED browser (not shared with scan worker)
+  let browser: Browser | null = null;
 
   try {
     await db.update(crawls).set({ status: "crawling" }).where(eq(crawls.id, crawlId));
 
-    session = await launchBrowser("chromium");
+    const pw = await import(/* webpackIgnore: true */ "playwright");
+    browser = await pw.chromium.launch({
+      headless: true,
+      args: ["--no-sandbox", "--disable-setuid-sandbox", "--disable-dev-shm-usage"],
+    });
 
     // 1. Fetch and parse robots.txt
     let robotsRules: RobotsRules = { allowedPaths: [], disallowedPaths: [], sitemaps: [] };
@@ -101,7 +105,7 @@ export async function runCrawl(crawlId: string): Promise<void> {
 
       // Crawl the page
       try {
-        const pageData = await crawlPage(session, normalizedUrl, seedOrigin);
+        const pageData = await crawlPage(browser!, normalizedUrl, seedOrigin);
 
         // Save to DB
         await db.insert(crawlPages).values({
@@ -178,16 +182,18 @@ export async function runCrawl(crawlId: string): Promise<void> {
     }).where(eq(crawls.id, crawlId));
     throw error;
   } finally {
-    if (session) await closeBrowser(session);
+    if (browser) {
+      try { await browser.close(); } catch { /* already closed */ }
+    }
   }
 }
 
 async function crawlPage(
-  session: BrowserSession,
+  browser: Browser,
   url: string,
   seedOrigin: string
 ): Promise<PageData> {
-  const context = await session.browser.newContext({
+  const context = await browser.newContext({
     userAgent: "UIAuditBot/1.0 (+https://github.com/ugurcanbulut/website-audit)",
   });
   const page = await context.newPage();
