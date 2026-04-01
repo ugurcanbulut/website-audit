@@ -92,7 +92,7 @@ export default async function CrawlPage({ params }: CrawlPageProps) {
               >
                 {crawl.status}
               </Badge>
-              <span className="text-sm text-muted-foreground">
+              <span className="text-base text-muted-foreground">
                 {new Date(crawl.createdAt).toLocaleString()}
               </span>
             </div>
@@ -123,7 +123,7 @@ export default async function CrawlPage({ params }: CrawlPageProps) {
         {/* Progress bar (when crawling) */}
         {isActive && (
           <div className="space-y-2">
-            <div className="flex items-center justify-between text-sm">
+            <div className="flex items-center justify-between text-base">
               <span className="font-medium">Crawling...</span>
               <span className="text-muted-foreground">{pages.length} / {maxPages} pages</span>
             </div>
@@ -135,7 +135,7 @@ export default async function CrawlPage({ params }: CrawlPageProps) {
         <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
           <Card size="sm">
             <CardHeader className="pb-1">
-              <CardTitle className="text-xs font-medium text-muted-foreground">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
                 Pages Crawled
               </CardTitle>
             </CardHeader>
@@ -145,14 +145,14 @@ export default async function CrawlPage({ params }: CrawlPageProps) {
           </Card>
           <Card size="sm">
             <CardHeader className="pb-1">
-              <CardTitle className="text-xs font-medium text-muted-foreground">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
                 Avg Response Time
               </CardTitle>
             </CardHeader>
             <CardContent>
               <p className="text-2xl font-bold tabular-nums">
                 {avgResponseTime}
-                <span className="text-sm font-normal text-muted-foreground ml-0.5">
+                <span className="text-base font-normal text-muted-foreground ml-0.5">
                   ms
                 </span>
               </p>
@@ -160,7 +160,7 @@ export default async function CrawlPage({ params }: CrawlPageProps) {
           </Card>
           <Card size="sm">
             <CardHeader className="pb-1">
-              <CardTitle className="text-xs font-medium text-muted-foreground">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
                 Error Pages
               </CardTitle>
             </CardHeader>
@@ -170,7 +170,7 @@ export default async function CrawlPage({ params }: CrawlPageProps) {
           </Card>
           <Card size="sm">
             <CardHeader className="pb-1">
-              <CardTitle className="text-xs font-medium text-muted-foreground">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
                 Issues Found
               </CardTitle>
             </CardHeader>

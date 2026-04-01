@@ -45,7 +45,7 @@ export function SectionCards({
             {totalScans}
           </CardTitle>
         </CardHeader>
-        <CardFooter className="flex-col items-start gap-1.5 text-sm">
+        <CardFooter className="flex-col items-start gap-1.5 text-base">
           <div className="line-clamp-1 flex gap-2 font-medium">
             {completedScans} completed
           </div>
@@ -74,7 +74,7 @@ export function SectionCards({
             </div>
           )}
         </CardHeader>
-        <CardFooter className="flex-col items-start gap-1.5 text-sm">
+        <CardFooter className="flex-col items-start gap-1.5 text-base">
           <div className="line-clamp-1 flex gap-2 font-medium">
             {avgScore !== null && avgScore >= 80
               ? "Good overall quality"
@@ -96,7 +96,7 @@ export function SectionCards({
             {totalIssues}
           </CardTitle>
         </CardHeader>
-        <CardFooter className="flex-col items-start gap-1.5 text-sm">
+        <CardFooter className="flex-col items-start gap-1.5 text-base">
           <div className="line-clamp-1 flex gap-2 font-medium">
             {criticalIssues} critical issues
             {criticalIssues > 0 && <TrendingDown className="size-4" />}
@@ -116,7 +116,7 @@ export function SectionCards({
               : "--"}
           </CardTitle>
         </CardHeader>
-        <CardFooter className="flex-col items-start gap-1.5 text-sm">
+        <CardFooter className="flex-col items-start gap-1.5 text-base">
           <div className="line-clamp-1 flex gap-2 font-medium">
             {totalScans > 0 && completedScans === totalScans
               ? "All scans completed"

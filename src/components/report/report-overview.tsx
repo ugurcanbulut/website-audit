@@ -106,13 +106,13 @@ export function ReportOverview({
           {lighthouseScores && <LighthouseGauges scores={lighthouseScores} />}
         </div>
         <div>
-          <p className="text-sm text-muted-foreground break-all">{scanUrl}</p>
+          <p className="text-base text-muted-foreground break-all">{scanUrl}</p>
           {browserEngine && (
-            <span className="inline-block mt-1 text-xs font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+            <span className="inline-block mt-1 text-sm font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
               {browserEngine}
             </span>
           )}
-          <p className="text-xs text-muted-foreground mt-1">{formattedDate}</p>
+          <p className="text-sm text-muted-foreground mt-1">{formattedDate}</p>
         </div>
       </div>
 
@@ -159,7 +159,7 @@ export function ReportOverview({
 
         {/* Category Score Cards */}
         <div className="space-y-3">
-          <h3 className="text-sm font-medium text-muted-foreground">
+          <h3 className="text-base font-medium text-muted-foreground">
             Category Breakdown
           </h3>
           <div className="grid gap-2 sm:grid-cols-2">
@@ -178,7 +178,7 @@ export function ReportOverview({
                   >
                     <CardContent className="pt-3">
                       <div className="flex items-center justify-between mb-2">
-                        <span className="text-sm font-medium">{label}</span>
+                        <span className="text-base font-medium">{label}</span>
                         <ScoreBadge score={cs.score} grade={grade} size="sm" />
                       </div>
                       <div className="w-full h-1.5 rounded-full bg-muted overflow-hidden mb-2">
@@ -194,7 +194,7 @@ export function ReportOverview({
                           style={{ width: `${cs.score}%` }}
                         />
                       </div>
-                      <div className="flex gap-3 text-xs text-muted-foreground">
+                      <div className="flex gap-3 text-sm text-muted-foreground">
                         {cs.issueCount.critical > 0 && (
                           <span className="text-red-600 dark:text-red-400">
                             {cs.issueCount.critical} critical

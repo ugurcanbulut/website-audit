@@ -140,7 +140,7 @@ export function CrawlForm() {
               aria-invalid={!!errors.url}
             />
             {errors.url && (
-              <p className="text-sm text-destructive">{errors.url}</p>
+              <p className="text-base text-destructive">{errors.url}</p>
             )}
           </div>
         </CardContent>
@@ -159,7 +159,7 @@ export function CrawlForm() {
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label htmlFor="max-pages">Max Pages</Label>
-              <span className="text-sm text-muted-foreground tabular-nums">
+              <span className="text-base text-muted-foreground tabular-nums">
                 {maxPages}
               </span>
             </div>
@@ -173,12 +173,12 @@ export function CrawlForm() {
               onChange={(e) => setMaxPages(Number(e.target.value))}
               className="w-full accent-primary"
             />
-            <div className="flex justify-between text-xs text-muted-foreground">
+            <div className="flex justify-between text-sm text-muted-foreground">
               <span>1</span>
               <span>1000</span>
             </div>
             {errors.maxPages && (
-              <p className="text-sm text-destructive">{errors.maxPages}</p>
+              <p className="text-base text-destructive">{errors.maxPages}</p>
             )}
           </div>
 
@@ -186,7 +186,7 @@ export function CrawlForm() {
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <Label htmlFor="max-depth">Max Depth</Label>
-              <span className="text-sm text-muted-foreground tabular-nums">
+              <span className="text-base text-muted-foreground tabular-nums">
                 {maxDepth}
               </span>
             </div>
@@ -200,12 +200,12 @@ export function CrawlForm() {
               onChange={(e) => setMaxDepth(Number(e.target.value))}
               className="w-full accent-primary"
             />
-            <div className="flex justify-between text-xs text-muted-foreground">
+            <div className="flex justify-between text-sm text-muted-foreground">
               <span>1</span>
               <span>20</span>
             </div>
             {errors.maxDepth && (
-              <p className="text-sm text-destructive">{errors.maxDepth}</p>
+              <p className="text-base text-destructive">{errors.maxDepth}</p>
             )}
           </div>
 
@@ -215,7 +215,7 @@ export function CrawlForm() {
               <Label htmlFor="crawl-rate">
                 Crawl Rate (ms between requests)
               </Label>
-              <span className="text-sm text-muted-foreground tabular-nums">
+              <span className="text-base text-muted-foreground tabular-nums">
                 {crawlRate}ms
               </span>
             </div>
@@ -229,12 +229,12 @@ export function CrawlForm() {
               onChange={(e) => setCrawlRate(Number(e.target.value))}
               className="w-full accent-primary"
             />
-            <div className="flex justify-between text-xs text-muted-foreground">
+            <div className="flex justify-between text-sm text-muted-foreground">
               <span>100ms (fast)</span>
               <span>10000ms (slow)</span>
             </div>
             {errors.crawlRate && (
-              <p className="text-sm text-destructive">{errors.crawlRate}</p>
+              <p className="text-base text-destructive">{errors.crawlRate}</p>
             )}
           </div>
         </CardContent>
@@ -274,8 +274,8 @@ export function CrawlForm() {
           <CardTitle>Exclude Patterns</CardTitle>
           <CardDescription>
             URL patterns to skip (one per line). Supports glob patterns like{" "}
-            <code className="text-xs">/blog/*</code> or{" "}
-            <code className="text-xs">*.pdf</code>.
+            <code className="text-sm">/blog/*</code> or{" "}
+            <code className="text-sm">*.pdf</code>.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -284,14 +284,14 @@ export function CrawlForm() {
             value={excludePatterns}
             onChange={(e) => setExcludePatterns(e.target.value)}
             rows={4}
-            className="w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-2 text-sm transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
+            className="w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-2 text-base transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
           />
         </CardContent>
       </Card>
 
       {/* Submit */}
       {submitError && (
-        <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+        <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-base text-destructive">
           {submitError}
         </div>
       )}

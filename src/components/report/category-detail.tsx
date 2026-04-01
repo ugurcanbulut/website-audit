@@ -73,7 +73,7 @@ export function CategoryDetail({
           <h3 className="text-lg font-semibold">{label}</h3>
           <ScoreBadge score={score} grade={grade} size="sm" />
         </div>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-base text-muted-foreground">
           {totalIssues} {totalIssues === 1 ? "issue" : "issues"} found
         </p>
       </div>
@@ -104,7 +104,7 @@ export function CategoryDetail({
         <TabsContent value={filter}>
           <div className="space-y-3 mt-3">
             {filteredIssues.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-6 text-center">
+              <p className="text-base text-muted-foreground py-6 text-center">
                 No {filter === "all" ? "" : filter} issues in this category.
               </p>
             ) : (

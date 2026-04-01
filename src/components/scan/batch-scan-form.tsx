@@ -95,7 +95,7 @@ export function BatchScanForm() {
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
       {error && (
-        <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+        <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-base text-destructive">
           {error}
         </div>
       )}
@@ -112,12 +112,12 @@ export function BatchScanForm() {
             onChange={(e) => setBatchName(e.target.value)}
           />
           <textarea
-            className="w-full min-h-[160px] rounded-lg border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            className="w-full min-h-[160px] rounded-lg border border-input bg-background px-3 py-2 text-base ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             placeholder={"https://example.com\nhttps://example.com/about\nhttps://example.com/contact"}
             value={urlText}
             onChange={(e) => setUrlText(e.target.value)}
           />
-          <p className="text-xs text-muted-foreground">
+          <p className="text-sm text-muted-foreground">
             {validUrls.length} valid URL{validUrls.length !== 1 ? "s" : ""}
             {invalidCount > 0 && (
               <span className="text-destructive">
@@ -145,7 +145,7 @@ export function BatchScanForm() {
                 type="button"
                 onClick={() => setBrowserEngine(engine)}
                 className={cn(
-                  "rounded-lg border p-3 text-center text-sm transition-colors",
+                  "rounded-lg border p-3 text-center text-base transition-colors",
                   browserEngine === engine
                     ? "border-primary bg-primary/5 font-medium"
                     : "border-border hover:bg-muted/50"
@@ -160,7 +160,7 @@ export function BatchScanForm() {
             ))}
           </div>
           {browserEngine !== "chromium" && (
-            <p className="text-xs text-muted-foreground mt-2">
+            <p className="text-sm text-muted-foreground mt-2">
               Lighthouse performance audit requires Chromium. Performance scores
               will not be available.
             </p>

@@ -49,13 +49,13 @@ export function DeviceSelector({ selected, onChange }: DeviceSelectorProps) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
+        <p className="text-base text-muted-foreground">
           {selected.length} of {DEVICE_PRESETS.length} devices selected
         </p>
         <button
           type="button"
           onClick={allSelected ? deselectAll : selectAll}
-          className="text-xs text-primary hover:underline"
+          className="text-sm text-primary hover:underline"
         >
           {allSelected ? "Deselect all" : "Select all"}
         </button>
@@ -70,7 +70,7 @@ export function DeviceSelector({ selected, onChange }: DeviceSelectorProps) {
           <div key={type}>
             <div className="flex items-center gap-2 mb-2">
               <Icon className="size-4 text-muted-foreground" />
-              <span className="text-sm font-medium">{typeLabels[type]}</span>
+              <span className="text-base font-medium">{typeLabels[type]}</span>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {devices.map((device) => {
@@ -81,7 +81,7 @@ export function DeviceSelector({ selected, onChange }: DeviceSelectorProps) {
                     type="button"
                     onClick={() => toggle(device.name)}
                     className={cn(
-                      "flex items-center gap-3 rounded-lg border p-3 text-left text-sm transition-colors",
+                      "flex items-center gap-3 rounded-lg border p-3 text-left text-base transition-colors",
                       isSelected
                         ? "border-primary bg-primary/5"
                         : "border-border hover:bg-muted/50"
@@ -91,7 +91,7 @@ export function DeviceSelector({ selected, onChange }: DeviceSelectorProps) {
                       <p className={cn("font-medium truncate", isSelected && "text-primary")}>
                         {device.name}
                       </p>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-sm text-muted-foreground">
                         {device.width}x{device.height}
                         {device.deviceScaleFactor && device.deviceScaleFactor > 1
                           ? ` @${device.deviceScaleFactor}x`

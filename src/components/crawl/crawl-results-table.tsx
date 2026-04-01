@@ -149,7 +149,7 @@ export function CrawlResultsTable({ pages }: CrawlResultsTableProps) {
         <button
           type="button"
           onClick={() => toggleSort(sortKeyVal)}
-          className="inline-flex items-center gap-1 text-left text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
+          className="inline-flex items-center gap-1 text-left text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
         >
           {label}
           {isActive ? (
@@ -182,7 +182,7 @@ export function CrawlResultsTable({ pages }: CrawlResultsTableProps) {
       {/* Table */}
       <div className="rounded-lg border overflow-x-auto">
         <TooltipProvider>
-          <table className="w-full text-sm">
+          <table className="w-full text-base">
             <thead>
               <tr className="border-b bg-muted/50">
                 <th className="w-8 px-2 py-2" />
@@ -206,7 +206,7 @@ export function CrawlResultsTable({ pages }: CrawlResultsTableProps) {
                   sortKeyVal="metaDescription"
                   className="px-3 py-2 text-left"
                 />
-                <th className="px-3 py-2 text-left text-xs font-medium text-muted-foreground">
+                <th className="px-3 py-2 text-left text-sm font-medium text-muted-foreground">
                   H1
                 </th>
                 <SortHeader
@@ -329,9 +329,9 @@ export function CrawlResultsTable({ pages }: CrawlResultsTableProps) {
                     {isExpanded && (
                       <tr className="border-b bg-muted/20">
                         <td colSpan={10} className="px-6 py-4">
-                          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 text-sm">
+                          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 text-base">
                             <div>
-                              <p className="text-xs font-medium text-muted-foreground mb-1">
+                              <p className="text-sm font-medium text-muted-foreground mb-1">
                                 Full URL
                               </p>
                               <a
@@ -344,26 +344,26 @@ export function CrawlResultsTable({ pages }: CrawlResultsTableProps) {
                               </a>
                             </div>
                             <div>
-                              <p className="text-xs font-medium text-muted-foreground mb-1">
+                              <p className="text-sm font-medium text-muted-foreground mb-1">
                                 Title ({page.title?.length ?? 0} chars)
                               </p>
                               <p>{page.title || "None"}</p>
                             </div>
                             <div>
-                              <p className="text-xs font-medium text-muted-foreground mb-1">
+                              <p className="text-sm font-medium text-muted-foreground mb-1">
                                 Meta Description (
                                 {page.metaDescription?.length ?? 0} chars)
                               </p>
                               <p>{page.metaDescription || "None"}</p>
                             </div>
                             <div>
-                              <p className="text-xs font-medium text-muted-foreground mb-1">
+                              <p className="text-sm font-medium text-muted-foreground mb-1">
                                 H1 Tags ({h1Arr.length})
                               </p>
                               <p>{h1Arr.join(" | ") || "None"}</p>
                             </div>
                             <div>
-                              <p className="text-xs font-medium text-muted-foreground mb-1">
+                              <p className="text-sm font-medium text-muted-foreground mb-1">
                                 H2 Tags ({h2Arr.length})
                               </p>
                               <p>
@@ -371,7 +371,7 @@ export function CrawlResultsTable({ pages }: CrawlResultsTableProps) {
                               </p>
                             </div>
                             <div>
-                              <p className="text-xs font-medium text-muted-foreground mb-1">
+                              <p className="text-sm font-medium text-muted-foreground mb-1">
                                 Canonical URL
                               </p>
                               <p className="break-all">
@@ -379,13 +379,13 @@ export function CrawlResultsTable({ pages }: CrawlResultsTableProps) {
                               </p>
                             </div>
                             <div>
-                              <p className="text-xs font-medium text-muted-foreground mb-1">
+                              <p className="text-sm font-medium text-muted-foreground mb-1">
                                 Meta Robots
                               </p>
                               <p>{page.metaRobots || "None"}</p>
                             </div>
                             <div>
-                              <p className="text-xs font-medium text-muted-foreground mb-1">
+                              <p className="text-sm font-medium text-muted-foreground mb-1">
                                 Links
                               </p>
                               <p>
@@ -394,7 +394,7 @@ export function CrawlResultsTable({ pages }: CrawlResultsTableProps) {
                               </p>
                             </div>
                             <div>
-                              <p className="text-xs font-medium text-muted-foreground mb-1">
+                              <p className="text-sm font-medium text-muted-foreground mb-1">
                                 Images
                               </p>
                               <p>
@@ -407,7 +407,7 @@ export function CrawlResultsTable({ pages }: CrawlResultsTableProps) {
                               </p>
                             </div>
                             <div>
-                              <p className="text-xs font-medium text-muted-foreground mb-1">
+                              <p className="text-sm font-medium text-muted-foreground mb-1">
                                 Content Size
                               </p>
                               <p>
@@ -418,10 +418,10 @@ export function CrawlResultsTable({ pages }: CrawlResultsTableProps) {
                             </div>
                             {errors.length > 0 && (
                               <div className="sm:col-span-2 lg:col-span-3">
-                                <p className="text-xs font-medium text-destructive mb-1">
+                                <p className="text-sm font-medium text-destructive mb-1">
                                   Errors ({errors.length})
                                 </p>
-                                <ul className="list-disc list-inside text-destructive text-xs space-y-0.5">
+                                <ul className="list-disc list-inside text-destructive text-sm space-y-0.5">
                                   {errors.map((err, i) => (
                                     <li key={i}>{err}</li>
                                   ))}
@@ -441,7 +441,7 @@ export function CrawlResultsTable({ pages }: CrawlResultsTableProps) {
       </div>
 
       {/* Count */}
-      <p className="text-xs text-muted-foreground">
+      <p className="text-sm text-muted-foreground">
         Showing {sorted.length} of {pages.length} pages
         {search && ` (filtered by "${search}")`}
       </p>

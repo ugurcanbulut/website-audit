@@ -42,7 +42,7 @@ export function IssuesByCategory({
 
   if (categoryScores.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground text-center py-8">
+      <p className="text-base text-muted-foreground text-center py-8">
         No category scores available.
       </p>
     );
@@ -54,10 +54,10 @@ export function IssuesByCategory({
         {categoryScores.map((cs) => {
           const totalIssues = cs.issueCount.critical + cs.issueCount.warning + cs.issueCount.info;
           return (
-            <TabsTrigger key={cs.category} value={cs.category} className="text-xs">
+            <TabsTrigger key={cs.category} value={cs.category} className="text-sm">
               {categoryLabels[cs.category] ?? cs.category}
               {totalIssues > 0 && (
-                <span className="ml-1 inline-flex items-center justify-center rounded-full bg-muted px-1.5 text-xs tabular-nums">
+                <span className="ml-1 inline-flex items-center justify-center rounded-full bg-muted px-1.5 text-sm tabular-nums">
                   {totalIssues}
                 </span>
               )}

@@ -30,7 +30,7 @@ export function ScoreBadge({ score, grade, size = "sm" }: ScoreBadgeProps) {
         <span className="text-4xl font-bold tabular-nums leading-none">
           {score}
         </span>
-        <span className="text-xs font-medium mt-1 uppercase tracking-wide">
+        <span className="text-sm font-medium mt-1 uppercase tracking-wide">
           out of 100
         </span>
         <span className="text-2xl font-bold mt-1 leading-none">{grade}</span>
@@ -41,7 +41,7 @@ export function ScoreBadge({ score, grade, size = "sm" }: ScoreBadgeProps) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-sm font-medium",
+        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-base font-medium",
         colors,
       )}
     >

@@ -20,7 +20,7 @@ export function ScreenshotCompare({
 }: ScreenshotCompareProps) {
   if (viewportResults.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground text-center py-8">
+      <p className="text-base text-muted-foreground text-center py-8">
         No screenshots available.
       </p>
     );
@@ -35,10 +35,10 @@ export function ScreenshotCompare({
           return (
             <Card key={vr.id}>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-sm">
+                <CardTitle className="flex items-center gap-2 text-base">
                   <DeviceIcon className="h-4 w-4 text-muted-foreground" />
                   {vr.viewportName}
-                  <span className="text-xs text-muted-foreground font-normal">
+                  <span className="text-sm text-muted-foreground font-normal">
                     {vr.width} x {vr.height}
                   </span>
                 </CardTitle>
@@ -48,7 +48,7 @@ export function ScreenshotCompare({
                   <ScreenshotThumbnail
                     src={vr.screenshotPath}
                     alt={`Screenshot at ${vr.viewportName} (${vr.width}x${vr.height})`}
-                    className="w-full h-auto object-contain"
+                    className="w-full h-auto object-cover max-h-[300px]"
                     estimatedWidth={vr.width * 2}
                     estimatedHeight={vr.height * 6}
                   />

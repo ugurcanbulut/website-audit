@@ -86,19 +86,19 @@ export function ScanProgress({ scanId, viewportNames }: ScanProgressProps) {
         </CardHeader>
         <CardContent className="space-y-4">
           <Progress value={progress}>
-            <span className="text-sm font-medium tabular-nums">
+            <span className="text-base font-medium tabular-nums">
               {Math.round(progress)}%
             </span>
           </Progress>
 
           {latestEvent && (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-base text-muted-foreground">
               {latestEvent.data.message}
             </p>
           )}
 
           {!isConnected && !isComplete && (
-            <p className="text-sm text-amber-600">
+            <p className="text-base text-amber-600">
               Connection lost. Attempting to reconnect...
             </p>
           )}
@@ -115,7 +115,7 @@ export function ScanProgress({ scanId, viewportNames }: ScanProgressProps) {
             {viewportNames.map((name) => {
               const done = completedViewports.has(name);
               return (
-                <li key={name} className="flex items-center gap-2 text-sm">
+                <li key={name} className="flex items-center gap-2 text-base">
                   {done ? (
                     <CheckCircle2 className="h-4 w-4 text-emerald-500" />
                   ) : isComplete ? (
@@ -150,7 +150,7 @@ export function ScanProgress({ scanId, viewportNames }: ScanProgressProps) {
         </CardHeader>
         <CardContent>
           {events.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-base text-muted-foreground">
               Waiting for events...
             </p>
           ) : (
@@ -159,7 +159,7 @@ export function ScanProgress({ scanId, viewportNames }: ScanProgressProps) {
                 <li
                   key={i}
                   className={cn(
-                    "text-sm",
+                    "text-base",
                     event.type === "error"
                       ? "text-destructive"
                       : "text-muted-foreground",

@@ -159,7 +159,7 @@ export function ScanForm() {
               aria-invalid={!!errors.url}
             />
             {errors.url && (
-              <p className="text-sm text-destructive">{errors.url}</p>
+              <p className="text-base text-destructive">{errors.url}</p>
             )}
           </div>
         </CardContent>
@@ -181,7 +181,7 @@ export function ScanForm() {
                 type="button"
                 onClick={() => setBrowserEngine(engine)}
                 className={cn(
-                  "rounded-lg border p-3 text-center text-sm transition-colors",
+                  "rounded-lg border p-3 text-center text-base transition-colors",
                   browserEngine === engine
                     ? "border-primary bg-primary/5 font-medium"
                     : "border-border hover:bg-muted/50"
@@ -192,7 +192,7 @@ export function ScanForm() {
             ))}
           </div>
           {browserEngine !== "chromium" && (
-            <p className="text-xs text-muted-foreground mt-2">
+            <p className="text-sm text-muted-foreground mt-2">
               Lighthouse performance audit requires Chromium. Performance scores will not be available.
             </p>
           )}
@@ -220,7 +220,7 @@ export function ScanForm() {
             }}
           />
           {errors.devices && (
-            <p className="text-sm text-destructive mt-2">{errors.devices}</p>
+            <p className="text-base text-destructive mt-2">{errors.devices}</p>
           )}
         </CardContent>
       </Card>
@@ -265,7 +265,7 @@ export function ScanForm() {
 
       {/* Submit */}
       {submitError && (
-        <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+        <div className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-base text-destructive">
           {submitError}
         </div>
       )}

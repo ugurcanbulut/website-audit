@@ -15,14 +15,14 @@ export default function SettingsPage() {
             <CardHeader>
               <CardTitle>AI Providers</CardTitle>
               <CardDescription>
-                Configure API keys for AI-powered audit analysis. Set these in your <code className="text-sm bg-muted px-1 py-0.5 rounded">.env</code> file.
+                Configure API keys for AI-powered audit analysis. Set these in your <code className="text-base bg-muted px-1 py-0.5 rounded">.env</code> file.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex items-center justify-between p-3 rounded-lg border">
                 <div>
                   <p className="font-medium">Anthropic (Claude)</p>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-base text-muted-foreground">
                     Uses Claude's vision API for visual analysis
                   </p>
                 </div>
@@ -34,7 +34,7 @@ export default function SettingsPage() {
               <div className="flex items-center justify-between p-3 rounded-lg border">
                 <div>
                   <p className="font-medium">OpenAI (GPT-4o)</p>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-base text-muted-foreground">
                     Uses GPT-4o vision for visual analysis
                   </p>
                 </div>
@@ -43,12 +43,12 @@ export default function SettingsPage() {
                 </Badge>
               </div>
 
-              <div className="rounded-lg bg-muted p-4 text-sm text-muted-foreground">
+              <div className="rounded-lg bg-muted p-4 text-base text-muted-foreground">
                 <p className="font-medium text-foreground mb-1">How to configure</p>
                 <p>
                   Add your API keys to the <code className="bg-background px-1 py-0.5 rounded">.env</code> file:
                 </p>
-                <pre className="mt-2 bg-background p-3 rounded text-xs overflow-x-auto">
+                <pre className="mt-2 bg-background p-3 rounded text-sm overflow-x-auto">
 {`ANTHROPIC_API_KEY=sk-ant-...
 OPENAI_API_KEY=sk-...`}
                 </pre>

@@ -106,7 +106,7 @@ export function RecentScans({ scans }: RecentScansProps) {
               <Monitor className="size-8 text-muted-foreground" />
             </div>
             <h3 className="text-lg font-semibold mb-1">No scans yet</h3>
-            <p className="text-muted-foreground text-sm mb-4 max-w-sm">
+            <p className="text-muted-foreground text-base mb-4 max-w-sm">
               Start by scanning a website to get a comprehensive UI/UX audit
               across multiple viewports.
             </p>
@@ -133,7 +133,7 @@ export function RecentScans({ scans }: RecentScansProps) {
       </CardHeader>
       <CardContent>
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full text-base">
             <thead>
               <tr className="border-b text-muted-foreground">
                 <th className="pb-2 pr-4 text-left font-medium">Site</th>
@@ -154,7 +154,7 @@ export function RecentScans({ scans }: RecentScansProps) {
                       >
                         {getHostname(scan.url)}
                       </Link>
-                      <p className="text-xs text-muted-foreground truncate max-w-[200px] sm:max-w-xs">
+                      <p className="text-sm text-muted-foreground truncate max-w-[200px] sm:max-w-xs">
                         {scan.url}
                       </p>
                     </td>
@@ -173,7 +173,7 @@ export function RecentScans({ scans }: RecentScansProps) {
                           {scan.overallGrade && (
                             <span
                               className={cn(
-                                "text-xs font-semibold",
+                                "text-sm font-semibold",
                                 getGradeColor(scan.overallGrade)
                               )}
                             >

@@ -98,7 +98,7 @@ export default async function ScanDetailPage({ params }: ScanDetailPageProps) {
                 <h2 className="text-lg font-semibold mb-2">
                   Something went wrong
                 </h2>
-                <p className="text-sm text-muted-foreground max-w-md mb-6">
+                <p className="text-base text-muted-foreground max-w-md mb-6">
                   {scan.error ?? "An unknown error occurred during the scan."}
                 </p>
                 <Link

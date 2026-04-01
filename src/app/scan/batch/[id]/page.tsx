@@ -81,15 +81,15 @@ export default async function BatchPage({ params }: BatchPageProps) {
           <Card>
             <CardContent className="py-6">
               <div className="flex items-center justify-between mb-2">
-                <p className="text-sm font-medium">
+                <p className="text-base font-medium">
                   Scanning {batchScans.length} URLs...
                 </p>
-                <span className="text-sm text-muted-foreground">
+                <span className="text-base text-muted-foreground">
                   {completed}/{batchScans.length}
                 </span>
               </div>
               <Progress value={progress} className="h-2" />
-              <p className="text-xs text-muted-foreground mt-2">
+              <p className="text-sm text-muted-foreground mt-2">
                 {completed} completed · {failed} failed · {pending} remaining
               </p>
             </CardContent>
@@ -118,7 +118,7 @@ export default async function BatchPage({ params }: BatchPageProps) {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-sm text-muted-foreground">
                   {completed} completed · {failed} failed
                 </p>
               </CardContent>
@@ -133,7 +133,7 @@ export default async function BatchPage({ params }: BatchPageProps) {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-xs text-muted-foreground">
+                <p className="text-sm text-muted-foreground">
                   Lowest to highest
                 </p>
               </CardContent>
@@ -182,15 +182,15 @@ export default async function BatchPage({ params }: BatchPageProps) {
                     className="flex items-center justify-between gap-4 rounded-lg border p-3 hover:bg-muted/50 transition-colors"
                   >
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium truncate">{hostname}</p>
-                      <p className="text-xs text-muted-foreground truncate">
+                      <p className="text-base font-medium truncate">{hostname}</p>
+                      <p className="text-sm text-muted-foreground truncate">
                         {scan.url}
                       </p>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
                       <span
                         className={cn(
-                          "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium",
+                          "inline-flex items-center rounded-full px-2 py-0.5 text-sm font-medium",
                           statusColor
                         )}
                       >

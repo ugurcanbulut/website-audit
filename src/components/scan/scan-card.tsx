@@ -102,7 +102,7 @@ export function ScanCard({ scan }: ScanCardProps) {
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0 flex-1">
               <CardTitle className="text-base truncate">{hostname}</CardTitle>
-              <p className="text-xs text-muted-foreground truncate mt-0.5">
+              <p className="text-sm text-muted-foreground truncate mt-0.5">
                 {scan.url}
               </p>
             </div>
@@ -118,24 +118,24 @@ export function ScanCard({ scan }: ScanCardProps) {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center gap-2 text-sm">
+          <div className="flex items-center gap-2 text-base">
             <span
-              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${status.color}`}
+              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-sm font-medium ${status.color}`}
             >
               {status.icon}
               {status.label}
             </span>
             {scan.aiEnabled && (
-              <Badge variant="outline" className="text-xs">
+              <Badge variant="outline" className="text-sm">
                 AI: {scan.aiProvider === "claude" ? "Claude" : "OpenAI"}
               </Badge>
             )}
-            <span className="ml-auto text-xs text-muted-foreground">
+            <span className="ml-auto text-sm text-muted-foreground">
               {formatTimeAgo(scan.createdAt)}
             </span>
           </div>
           {scan.status === "failed" && scan.error && (
-            <p className="text-xs text-destructive mt-2 truncate">
+            <p className="text-sm text-destructive mt-2 truncate">
               {scan.error}
             </p>
           )}

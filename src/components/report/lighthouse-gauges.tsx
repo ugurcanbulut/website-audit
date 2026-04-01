@@ -62,7 +62,7 @@ function ScoreGauge({ score, label }: { score: number; label: string }) {
           </span>
         </div>
       </div>
-      <span className="text-xs font-medium text-muted-foreground">{label}</span>
+      <span className="text-sm font-medium text-muted-foreground">{label}</span>
     </div>
   );
 }
@@ -79,7 +79,7 @@ export function LighthouseGauges({ scores }: LighthouseGaugesProps) {
             <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z" />
           </svg>
         </div>
-        <span className="text-sm font-semibold">Lighthouse Scores</span>
+        <span className="text-base font-semibold">Lighthouse Scores</span>
       </div>
       <div className="flex items-center justify-around flex-wrap gap-4">
         {scores.performance !== undefined && (

@@ -70,7 +70,7 @@ export function IssueCard({ issue, annotationNumber, isHighlighted }: IssueCardP
           {annotationNumber != null && (
             <span
               className={cn(
-                "inline-flex items-center justify-center rounded-full size-6 text-xs font-bold shrink-0 mt-0.5",
+                "inline-flex items-center justify-center rounded-full size-6 text-sm font-bold shrink-0 mt-0.5",
                 annotationBadgeColor[issue.severity] ?? "bg-blue-500 text-white",
               )}
             >
@@ -82,31 +82,31 @@ export function IssueCard({ issue, annotationNumber, isHighlighted }: IssueCardP
             <div className="flex items-center gap-2 flex-wrap mb-1">
               <span
                 className={cn(
-                  "inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium",
+                  "inline-flex items-center rounded-full border px-2 py-0.5 text-sm font-medium",
                   config.bgColor,
                 )}
               >
                 {config.label}
               </span>
               {viewportName && (
-                <span className="inline-flex items-center rounded-full border border-border px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                <span className="inline-flex items-center rounded-full border border-border px-2 py-0.5 text-sm font-medium text-muted-foreground">
                   {viewportName}
                 </span>
               )}
             </div>
-            <CardTitle className="text-sm">{issue.title}</CardTitle>
+            <CardTitle className="text-base">{issue.title}</CardTitle>
           </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
-        <p className="text-sm text-muted-foreground">{issue.description}</p>
+        <p className="text-base text-muted-foreground">{issue.description}</p>
 
         {issue.elementSelector && (
           <div className="rounded-md bg-muted px-3 py-2">
-            <p className="text-xs text-muted-foreground mb-1">
+            <p className="text-sm text-muted-foreground mb-1">
               Element selector
             </p>
-            <code className="text-xs font-mono break-all">
+            <code className="text-sm font-mono break-all">
               {issue.elementSelector}
             </code>
           </div>
@@ -114,10 +114,10 @@ export function IssueCard({ issue, annotationNumber, isHighlighted }: IssueCardP
 
         {issue.recommendation && (
           <div className="rounded-md bg-primary/5 border border-primary/10 px-3 py-2">
-            <p className="text-xs font-medium text-primary mb-1">
+            <p className="text-sm font-medium text-primary mb-1">
               Recommendation
             </p>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-sm text-muted-foreground">
               {issue.recommendation}
             </p>
           </div>

@@ -37,14 +37,14 @@ export function AnnotatedScreenshot({
       {/* Controls */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <p className="text-sm font-medium">
+          <p className="text-base font-medium">
             {viewportName}{" "}
             <span className="text-muted-foreground font-normal">
               ({width}x{height})
             </span>
           </p>
           {annotations.length > 0 && (
-            <Badge variant="secondary" className="text-xs">
+            <Badge variant="secondary" className="text-sm">
               {annotations.length} annotations
             </Badge>
           )}
@@ -91,7 +91,7 @@ export function AnnotatedScreenshot({
 
       {/* Hovered/selected annotation info */}
       {(hoveredAnnotation || selectedId) && (
-        <div className="rounded-md border bg-card p-3 text-sm">
+        <div className="rounded-md border bg-card p-3 text-base">
           {(() => {
             const ann = hoveredAnnotation ?? annotations.find(a => a.id === selectedId);
             if (!ann) return null;
@@ -103,12 +103,12 @@ export function AnnotatedScreenshot({
             }[ann.severity] ?? "";
             return (
               <div className="flex items-start gap-2">
-                <span className="inline-flex items-center justify-center rounded-full bg-muted size-6 text-xs font-bold shrink-0">
+                <span className="inline-flex items-center justify-center rounded-full bg-muted size-6 text-sm font-bold shrink-0">
                   {ann.number}
                 </span>
                 <div>
                   <p className="font-medium">{ann.title}</p>
-                  <p className={`text-xs ${severityColor}`}>
+                  <p className={`text-sm ${severityColor}`}>
                     {ann.severity} - {ann.category}
                     {ann.source === "ai" && " (AI)"}
                   </p>
