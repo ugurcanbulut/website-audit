@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { z } from "zod";
-import { Loader2, Smartphone, Tablet, Monitor } from "lucide-react";
-import { VIEWPORT_PRESETS } from "@/lib/scanner/viewports";
-import type { AiProvider, ViewportType } from "@/lib/types";
+import { Loader2 } from "lucide-react";
+import { DEFAULT_DEVICES } from "@/lib/scanner/devices";
+import type { AiProvider, BrowserEngine } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
+import { DeviceSelector } from "@/components/scan/device-selector";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -34,43 +36,16 @@ const scanFormSchema = z.object({
   url: z
     .string()
     .min(1, "URL is required")
-    .url("Please enter a valid URL (e.g. https://example.com)"),
-  viewports: z
+    .url("Please enter a valid URL"),
+  devices: z
     .array(z.string())
-    .min(1, "Select at least one viewport"),
+    .min(1, "Select at least one device"),
+  browserEngine: z.enum(["chromium", "firefox", "webkit"]).default("chromium"),
   aiEnabled: z.boolean(),
   aiProvider: z.enum(["claude", "openai"]).optional(),
 });
 
 type ScanFormValues = z.infer<typeof scanFormSchema>;
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-const typeIcons: Record<ViewportType, React.ReactNode> = {
-  mobile: <Smartphone className="h-4 w-4" />,
-  tablet: <Tablet className="h-4 w-4" />,
-  desktop: <Monitor className="h-4 w-4" />,
-};
-
-const typeLabels: Record<ViewportType, string> = {
-  mobile: "Mobile",
-  tablet: "Tablet",
-  desktop: "Desktop",
-};
-
-function groupViewportsByType() {
-  const groups: Record<ViewportType, typeof VIEWPORT_PRESETS> = {
-    mobile: [],
-    tablet: [],
-    desktop: [],
-  };
-  for (const vp of VIEWPORT_PRESETS) {
-    groups[vp.type].push(vp);
-  }
-  return groups;
-}
 
 // ---------------------------------------------------------------------------
 // Component
@@ -81,9 +56,8 @@ export function ScanForm() {
 
   // Form state
   const [url, setUrl] = useState("");
-  const [selectedViewports, setSelectedViewports] = useState<string[]>(
-    VIEWPORT_PRESETS.map((v) => v.name),
-  );
+  const [selectedDevices, setSelectedDevices] = useState<string[]>(DEFAULT_DEVICES);
+  const [browserEngine, setBrowserEngine] = useState<BrowserEngine>("chromium");
   const [aiEnabled, setAiEnabled] = useState(false);
   const [aiProvider, setAiProvider] = useState<AiProvider>("claude");
 
@@ -91,37 +65,6 @@ export function ScanForm() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
-
-  const viewportGroups = useMemo(groupViewportsByType, []);
-  const allSelected = selectedViewports.length === VIEWPORT_PRESETS.length;
-
-  // ----- Viewport toggles --------------------------------------------------
-
-  function toggleViewport(name: string) {
-    setSelectedViewports((prev) =>
-      prev.includes(name)
-        ? prev.filter((n) => n !== name)
-        : [...prev, name],
-    );
-    setErrors((prev) => {
-      const next = { ...prev };
-      delete next.viewports;
-      return next;
-    });
-  }
-
-  function toggleAll() {
-    if (allSelected) {
-      setSelectedViewports([]);
-    } else {
-      setSelectedViewports(VIEWPORT_PRESETS.map((v) => v.name));
-    }
-    setErrors((prev) => {
-      const next = { ...prev };
-      delete next.viewports;
-      return next;
-    });
-  }
 
   // ----- Submit -------------------------------------------------------------
 
@@ -132,7 +75,8 @@ export function ScanForm() {
 
     const values: ScanFormValues = {
       url: url.trim(),
-      viewports: selectedViewports,
+      devices: selectedDevices,
+      browserEngine,
       aiEnabled,
       aiProvider: aiEnabled ? aiProvider : undefined,
     };
@@ -157,7 +101,13 @@ export function ScanForm() {
       const res = await fetch("/api/scans", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(result.data),
+        body: JSON.stringify({
+          url: result.data.url,
+          devices: selectedDevices,
+          browserEngine,
+          aiEnabled: result.data.aiEnabled,
+          aiProvider: aiEnabled ? aiProvider : undefined,
+        }),
       });
 
       if (!res.ok) {
@@ -215,66 +165,62 @@ export function ScanForm() {
         </CardContent>
       </Card>
 
-      {/* Viewports */}
+      {/* Browser Engine */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Viewports</CardTitle>
-              <CardDescription>
-                Choose the screen sizes to test against.
-              </CardDescription>
-            </div>
-            <button
-              type="button"
-              onClick={toggleAll}
-              className="text-sm font-medium text-primary hover:underline"
-            >
-              {allSelected ? "Deselect All" : "Select All"}
-            </button>
-          </div>
+          <CardTitle>Browser Engine</CardTitle>
+          <CardDescription>
+            Choose which browser engine to use for rendering and auditing.
+          </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-5">
-          {(Object.keys(viewportGroups) as ViewportType[]).map((type) => (
-            <div key={type}>
-              <div className="flex items-center gap-1.5 mb-2 text-muted-foreground">
-                {typeIcons[type]}
-                <span className="text-xs font-semibold uppercase tracking-wider">
-                  {typeLabels[type]}
-                </span>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {viewportGroups[type].map((vp) => {
-                  const checked = selectedViewports.includes(vp.name);
-                  return (
-                    <label
-                      key={vp.name}
-                      className={`flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2.5 transition-colors select-none ${
-                        checked
-                          ? "border-primary/50 bg-primary/5"
-                          : "border-border hover:border-muted-foreground/30"
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => toggleViewport(vp.name)}
-                        className="accent-primary h-4 w-4 rounded"
-                      />
-                      <div className="flex flex-col">
-                        <span className="text-sm font-medium">{vp.name}</span>
-                        <span className="text-xs text-muted-foreground">
-                          {vp.width} x {vp.height}
-                        </span>
-                      </div>
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-          {errors.viewports && (
-            <p className="text-sm text-destructive">{errors.viewports}</p>
+        <CardContent>
+          <div className="grid grid-cols-3 gap-2">
+            {(["chromium", "firefox", "webkit"] as const).map((engine) => (
+              <button
+                key={engine}
+                type="button"
+                onClick={() => setBrowserEngine(engine)}
+                className={cn(
+                  "rounded-lg border p-3 text-center text-sm transition-colors",
+                  browserEngine === engine
+                    ? "border-primary bg-primary/5 font-medium"
+                    : "border-border hover:bg-muted/50"
+                )}
+              >
+                {engine === "chromium" ? "Chrome" : engine === "firefox" ? "Firefox" : "Safari"}
+              </button>
+            ))}
+          </div>
+          {browserEngine !== "chromium" && (
+            <p className="text-xs text-muted-foreground mt-2">
+              Lighthouse performance audit requires Chromium. Performance scores will not be available.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Devices */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Devices</CardTitle>
+          <CardDescription>
+            Choose the devices and screen sizes to test against.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <DeviceSelector
+            selected={selectedDevices}
+            onChange={(devices) => {
+              setSelectedDevices(devices);
+              setErrors((prev) => {
+                const next = { ...prev };
+                delete next.devices;
+                return next;
+              });
+            }}
+          />
+          {errors.devices && (
+            <p className="text-sm text-destructive mt-2">{errors.devices}</p>
           )}
         </CardContent>
       </Card>

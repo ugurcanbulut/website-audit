@@ -18,6 +18,7 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { LighthouseGauges } from "@/components/report/lighthouse-gauges";
 
 function getGrade(score: number): Grade {
   if (score >= 90) return "A";
@@ -36,6 +37,10 @@ const categoryLabels: Record<string, string> = {
   forms: "Forms",
   visual: "Visual",
   seo: "SEO",
+  "best-practices": "Best Practices",
+  security: "Security",
+  "html-quality": "HTML Quality",
+  "css-quality": "CSS Quality",
   "ai-analysis": "AI Analysis",
 };
 
@@ -53,6 +58,13 @@ interface ReportOverviewProps {
   categoryScores: CategoryScore[];
   scanUrl: string;
   createdAt: string;
+  lighthouseScores?: {
+    performance?: number;
+    accessibility?: number;
+    bestPractices?: number;
+    seo?: number;
+  };
+  browserEngine?: string;
 }
 
 export function ReportOverview({
@@ -61,6 +73,8 @@ export function ReportOverview({
   categoryScores,
   scanUrl,
   createdAt,
+  lighthouseScores,
+  browserEngine,
 }: ReportOverviewProps) {
   const radarData = categoryScores.map((cs) => ({
     category: categoryLabels[cs.category] ?? cs.category,
@@ -80,9 +94,24 @@ export function ReportOverview({
     <div className="space-y-6">
       {/* Score Header */}
       <div className="flex flex-col items-center text-center gap-4">
-        <ScoreBadge score={overallScore} grade={overallGrade} size="lg" />
+        <div className="grid gap-4 md:grid-cols-2 w-full">
+          {/* Left: Overall score badge */}
+          <Card>
+            <CardContent className="flex items-center justify-center py-6">
+              <ScoreBadge score={overallScore} grade={overallGrade} size="lg" />
+            </CardContent>
+          </Card>
+
+          {/* Right: Lighthouse gauges */}
+          {lighthouseScores && <LighthouseGauges scores={lighthouseScores} />}
+        </div>
         <div>
           <p className="text-sm text-muted-foreground break-all">{scanUrl}</p>
+          {browserEngine && (
+            <span className="inline-block mt-1 text-xs font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+              {browserEngine}
+            </span>
+          )}
           <p className="text-xs text-muted-foreground mt-1">{formattedDate}</p>
         </div>
       </div>

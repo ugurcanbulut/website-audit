@@ -4,7 +4,7 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { scans } from "@/lib/db/schema";
 import { addScanJob } from "@/lib/queue/scan-queue";
-import { getViewportsByNames, DEFAULT_VIEWPORTS } from "@/lib/scanner/viewports";
+import { getDevicesByNames, DEFAULT_DEVICES } from "@/lib/scanner/devices";
 import { startScanWorker } from "@/lib/queue/scan-worker";
 
 // Ensure worker is started when API is used
@@ -18,7 +18,11 @@ async function ensureWorker() {
 
 const createScanSchema = z.object({
   url: z.string().url("Please enter a valid URL"),
-  viewports: z.array(z.string()).min(1, "Select at least one viewport").default(DEFAULT_VIEWPORTS),
+  // Legacy support
+  viewports: z.array(z.string()).optional(),
+  // New device-based
+  devices: z.array(z.string()).optional(),
+  browserEngine: z.enum(["chromium", "firefox", "webkit"]).default("chromium"),
   aiEnabled: z.boolean().default(false),
   aiProvider: z.enum(["claude", "openai"]).optional(),
 });
@@ -47,22 +51,38 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { url, viewports: viewportNames, aiEnabled, aiProvider } = parsed.data;
-  const viewports = getViewportsByNames(viewportNames);
+  const { url, aiEnabled, aiProvider } = parsed.data;
 
-  if (viewports.length === 0) {
+  // Resolve device names: new device-based > legacy viewports > defaults
+  const deviceNames = parsed.data.devices
+    ?? parsed.data.viewports
+    ?? DEFAULT_DEVICES;
+
+  // Full device presets (includes userAgent, scale factor, etc.)
+  const resolvedDevices = getDevicesByNames(deviceNames);
+
+  if (resolvedDevices.length === 0) {
     return NextResponse.json(
-      { error: { viewports: ["No valid viewports selected"] } },
+      { error: { devices: ["No valid devices selected"] } },
       { status: 400 }
     );
   }
+
+  // Store as ViewportConfig for DB backward compat
+  const viewportConfigs = resolvedDevices.map((d) => ({
+    name: d.name,
+    width: d.width,
+    height: d.height,
+    type: d.type,
+  }));
 
   // Create scan record
   const [scan] = await db
     .insert(scans)
     .values({
       url,
-      viewports: viewports,
+      viewports: viewportConfigs,
+      browserEngine: parsed.data.browserEngine,
       aiEnabled,
       aiProvider: aiEnabled ? aiProvider : null,
     })
@@ -72,7 +92,9 @@ export async function POST(request: NextRequest) {
   await addScanJob({
     scanId: scan.id,
     url,
-    viewports,
+    viewports: viewportConfigs,
+    devices: resolvedDevices,
+    browserEngine: parsed.data.browserEngine,
     aiEnabled,
     aiProvider,
   });

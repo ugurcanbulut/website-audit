@@ -20,6 +20,10 @@ const categoryLabels: Record<string, string> = {
   forms: "Forms",
   visual: "Visual",
   seo: "SEO",
+  "best-practices": "Best Practices",
+  security: "Security",
+  "html-quality": "HTML Quality",
+  "css-quality": "CSS Quality",
   "ai-analysis": "AI Analysis",
 };
 

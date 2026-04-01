@@ -180,6 +180,20 @@ export default async function ScanDetailPage({ params }: ScanDetailPageProps) {
     }
   }
 
+  // Extract Lighthouse scores if available
+  let lighthouseScores: { performance?: number; bestPractices?: number; seo?: number } | undefined;
+  for (const vr of vpResultsRaw) {
+    const lhJson = vr.lighthouseJson as Record<string, unknown> | null;
+    if (lhJson?.categories) {
+      const cats = lhJson.categories as Record<string, { score?: number | null }>;
+      lighthouseScores = {};
+      if (cats.performance?.score != null) lighthouseScores.performance = Math.round(cats.performance.score * 100);
+      if (cats["best-practices"]?.score != null) lighthouseScores.bestPractices = Math.round(cats["best-practices"].score * 100);
+      if (cats.seo?.score != null) lighthouseScores.seo = Math.round(cats.seo.score * 100);
+      break;
+    }
+  }
+
   const overallScore = scan.overallScore ?? 0;
   const overallGrade = (scan.overallGrade as Grade | null) ?? "F";
 
@@ -200,6 +214,8 @@ export default async function ScanDetailPage({ params }: ScanDetailPageProps) {
       categoryScores={catScores}
       scanUrl={scan.url}
       createdAt={scan.createdAt.toISOString()}
+      lighthouseScores={lighthouseScores}
+      browserEngine={scan.browserEngine ?? undefined}
     />
   );
 
