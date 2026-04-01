@@ -8,6 +8,7 @@ import {
 } from "@/components/ui/card";
 import { AlertTriangle, AlertCircle, Info } from "lucide-react";
 import { ElementScreenshot } from "@/components/report/element-screenshot";
+import { GenerateFixButton } from "@/components/report/generate-fix-button";
 
 const severityConfig: Record<
   string,
@@ -139,6 +140,11 @@ export function IssueCard({ issue, annotationNumber, isHighlighted, elementScree
               {issue.recommendation}
             </p>
           </div>
+        )}
+
+        {/* Generate Fix button for accessibility issues with HTML but no existing fix */}
+        {issue.category === "accessibility" && issue.elementHtml && !issue.details?.codeFix && (
+          <GenerateFixButton issueId={issue.id} />
         )}
 
         {/* Code fix (from AI analysis) */}
