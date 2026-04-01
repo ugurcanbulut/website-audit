@@ -25,6 +25,8 @@ const AUTOCOMPLETE_INPUT_TYPES = new Set([
 
 /**
  * Form-related checks for a single viewport snapshot.
+ * Kept checks: small-input-mobile, missing-autocomplete.
+ * Removed: input-no-label, placeholder-only (covered by axe-core).
  */
 export function runFormChecks(
   domSnapshot: DomSnapshot,
@@ -36,137 +38,6 @@ export function runFormChecks(
   const formInputs = domSnapshot.elements.filter(
     (el) => FORM_INPUT_TAGS.has(el.tagName) && el.isVisible
   );
-
-  // Build a map of id -> elements for label association lookup
-  const elementsById = new Map<string, DomElement>();
-  for (const el of domSnapshot.elements) {
-    if (el.attributes.id) {
-      elementsById.set(el.attributes.id, el);
-    }
-  }
-
-  // Collect all label elements with their `for` attribute
-  const labelForIds = new Set<string>();
-  for (const el of domSnapshot.elements) {
-    if (el.tagName === "label" && el.attributes.for) {
-      labelForIds.add(el.attributes.for);
-    }
-  }
-
-  // --- Inputs without labels ---
-  const unlabeledInputs: DomElement[] = [];
-  for (const el of formInputs) {
-    // Skip hidden inputs and submit/button types
-    const inputType = el.attributes.type?.toLowerCase() ?? "";
-    if (inputType === "hidden" || inputType === "submit" || inputType === "button") {
-      continue;
-    }
-
-    const hasAriaLabel = !!el.attributes["aria-label"];
-    const hasAriaLabelledBy = !!el.attributes["aria-labelledby"];
-    const hasTitle = !!el.attributes.title;
-    const hasAssociatedLabel = el.attributes.id
-      ? labelForIds.has(el.attributes.id)
-      : false;
-
-    if (!hasAriaLabel && !hasAriaLabelledBy && !hasTitle && !hasAssociatedLabel) {
-      unlabeledInputs.push(el);
-    }
-  }
-
-  if (unlabeledInputs.length > 0) {
-    issues.push({
-      category: "forms",
-      severity: "critical",
-      ruleId: "input-no-label",
-      title: `${unlabeledInputs.length} form input(s) without labels on ${viewportName}`,
-      description: `Found ${unlabeledInputs.length} form input(s) lacking an associated label. Inputs without labels are inaccessible to screen readers and make forms harder to use for all users.`,
-      recommendation:
-        "Associate each input with a <label> element using the for/id pattern, or add an aria-label or aria-labelledby attribute.",
-      details: {
-        count: unlabeledInputs.length,
-        viewport: viewportName,
-      },
-    });
-
-    for (const el of unlabeledInputs.slice(0, 10)) {
-      issues.push({
-        category: "forms",
-        severity: "critical",
-        ruleId: "input-no-label",
-        title: `Input without label on ${viewportName}`,
-        description: `<${el.tagName}${el.attributes.type ? ` type="${el.attributes.type}"` : ""}> has no associated label, aria-label, or aria-labelledby attribute.`,
-        elementSelector: el.selector,
-        recommendation:
-          "Add a <label for=\"...\"> element, or an aria-label attribute to describe the input's purpose.",
-        details: {
-          tagName: el.tagName,
-          type: el.attributes.type ?? "text",
-          viewport: viewportName,
-        },
-      });
-    }
-  }
-
-  // --- Placeholder-only labels ---
-  const placeholderOnlyInputs: DomElement[] = [];
-  for (const el of formInputs) {
-    const inputType = el.attributes.type?.toLowerCase() ?? "";
-    if (inputType === "hidden" || inputType === "submit" || inputType === "button") {
-      continue;
-    }
-
-    const hasPlaceholder = !!el.attributes.placeholder;
-    const hasAriaLabel = !!el.attributes["aria-label"];
-    const hasAriaLabelledBy = !!el.attributes["aria-labelledby"];
-    const hasTitle = !!el.attributes.title;
-    const hasAssociatedLabel = el.attributes.id
-      ? labelForIds.has(el.attributes.id)
-      : false;
-
-    if (
-      hasPlaceholder &&
-      !hasAriaLabel &&
-      !hasAriaLabelledBy &&
-      !hasTitle &&
-      !hasAssociatedLabel
-    ) {
-      placeholderOnlyInputs.push(el);
-    }
-  }
-
-  if (placeholderOnlyInputs.length > 0) {
-    issues.push({
-      category: "forms",
-      severity: "warning",
-      ruleId: "placeholder-only",
-      title: `${placeholderOnlyInputs.length} input(s) using placeholder as only label on ${viewportName}`,
-      description: `Found ${placeholderOnlyInputs.length} input(s) that rely on placeholder text as their only label. Placeholders disappear when the user starts typing, making it easy to forget the field's purpose.`,
-      recommendation:
-        "Add a persistent visible label above or beside each input. Placeholders should supplement labels, not replace them.",
-      details: {
-        count: placeholderOnlyInputs.length,
-        viewport: viewportName,
-      },
-    });
-
-    for (const el of placeholderOnlyInputs.slice(0, 5)) {
-      issues.push({
-        category: "forms",
-        severity: "warning",
-        ruleId: "placeholder-only",
-        title: `Placeholder used as only label on ${viewportName}`,
-        description: `<${el.tagName}> uses placeholder="${el.attributes.placeholder}" as its only label. This text disappears on input focus, leaving users without context.`,
-        elementSelector: el.selector,
-        recommendation:
-          "Add a visible <label> element. Keep the placeholder as supplementary hint text.",
-        details: {
-          placeholder: el.attributes.placeholder,
-          viewport: viewportName,
-        },
-      });
-    }
-  }
 
   // --- Small input on mobile ---
   if (viewportType === "mobile" || viewportType === "tablet") {

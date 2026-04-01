@@ -4,90 +4,109 @@ import type { ScanJobData } from "./scan-queue";
 import { db } from "@/lib/db";
 import { scans, viewportResults } from "@/lib/db/schema";
 import { captureViewport } from "@/lib/scanner/capture";
-import { closeBrowser } from "@/lib/scanner/browser";
+import { launchBrowser, closeBrowser } from "@/lib/scanner/browser";
 import { publishScanEvent } from "@/lib/queue/scan-events";
+import { getDevicesByNames } from "@/lib/scanner/devices";
+import type { DevicePreset, BrowserEngine } from "@/lib/types";
 
 async function processScanJob(data: ScanJobData): Promise<void> {
-  const { scanId, url, viewports, aiEnabled, aiProvider } = data;
+  const { scanId, url, aiEnabled, aiProvider } = data;
+  const browserEngine: BrowserEngine = data.browserEngine ?? "chromium";
+
+  // Resolve devices: use new device presets if available, fall back to legacy viewports
+  let devices: DevicePreset[];
+  if (data.devices && data.devices.length > 0) {
+    devices = data.devices;
+  } else {
+    // Legacy: convert ViewportConfig to DevicePreset
+    devices = data.viewports.map((v) => ({
+      name: v.name,
+      width: v.width,
+      height: v.height,
+      type: v.type,
+    }));
+  }
+
+  const session = await launchBrowser(browserEngine);
 
   try {
-    await db
-      .update(scans)
-      .set({ status: "scanning" })
-      .where(eq(scans.id, scanId));
-
+    // Update status to scanning
+    await db.update(scans).set({ status: "scanning" }).where(eq(scans.id, scanId));
     publishScanEvent(scanId, {
       type: "status",
       data: { scanId, message: "Starting scan...", progress: 0 },
     });
 
-    for (let i = 0; i < viewports.length; i++) {
-      const viewport = viewports[i];
+    // Capture each device viewport
+    for (let i = 0; i < devices.length; i++) {
+      const device = devices[i];
+      const isFirst = i === 0;
 
       publishScanEvent(scanId, {
         type: "status",
         data: {
           scanId,
-          message: `Scanning ${viewport.name} (${viewport.width}x${viewport.height})...`,
-          progress: Math.round((i / viewports.length) * 40),
-          viewport: viewport.name,
+          message: `Scanning ${device.name} (${device.width}x${device.height})...`,
+          progress: Math.round((i / devices.length) * 35),
+          viewport: device.name,
         },
       });
 
-      const result = await captureViewport(url, viewport, scanId);
+      const result = await captureViewport(url, device, scanId, session, {
+        captureHtmlCss: isFirst,  // Only capture HTML/CSS for first viewport
+      });
 
+      // Save viewport result with expanded data
       await db.insert(viewportResults).values({
         scanId,
-        viewportName: viewport.name,
-        width: viewport.width,
-        height: viewport.height,
+        viewportName: device.name,
+        width: device.width,
+        height: device.height,
         screenshotPath: result.screenshotPath,
         domSnapshot: result.domSnapshot,
         performanceMetrics: result.performanceMetrics,
+        deviceName: device.name,
+        axeResults: result.axeResults ?? null,
+        responseHeaders: result.responseHeaders ?? null,
+        pageHtml: result.pageHtml ?? null,
+        pageCss: result.pageCss ?? null,
       });
 
       publishScanEvent(scanId, {
         type: "viewport_complete",
         data: {
           scanId,
-          message: `Completed ${viewport.name}`,
-          progress: Math.round(((i + 1) / viewports.length) * 40),
-          viewport: viewport.name,
+          message: `Completed ${device.name}`,
+          progress: Math.round(((i + 1) / devices.length) * 35),
+          viewport: device.name,
         },
       });
     }
 
-    await db
-      .update(scans)
-      .set({ status: "auditing" })
-      .where(eq(scans.id, scanId));
-
+    // Run audit engine WITH browser session (Lighthouse needs live browser)
+    await db.update(scans).set({ status: "auditing" }).where(eq(scans.id, scanId));
     publishScanEvent(scanId, {
       type: "status",
-      data: { scanId, message: "Running audit rules...", progress: 40 },
+      data: { scanId, message: "Running audit engine...", progress: 35 },
     });
 
     const { runAuditEngine } = await import("@/lib/audit/engine");
-    await runAuditEngine(scanId);
+    await runAuditEngine(scanId, url, session);
 
     publishScanEvent(scanId, {
       type: "audit_progress",
-      data: { scanId, message: "Audit rules completed", progress: 70 },
+      data: { scanId, message: "Audit engine completed", progress: 65 },
     });
 
-    if (aiEnabled && aiProvider) {
-      await db
-        .update(scans)
-        .set({ status: "analyzing" })
-        .where(eq(scans.id, scanId));
+    // NOW close browser (Lighthouse is done)
+    await closeBrowser(session);
 
+    // Run AI analysis if enabled (no browser needed)
+    if (aiEnabled && aiProvider) {
+      await db.update(scans).set({ status: "analyzing" }).where(eq(scans.id, scanId));
       publishScanEvent(scanId, {
         type: "ai_progress",
-        data: {
-          scanId,
-          message: `Running AI analysis with ${aiProvider}...`,
-          progress: 75,
-        },
+        data: { scanId, message: `Running AI analysis with ${aiProvider}...`, progress: 70 },
       });
 
       const { runAiAnalysis } = await import("@/lib/ai/provider");
@@ -95,44 +114,35 @@ async function processScanJob(data: ScanJobData): Promise<void> {
 
       publishScanEvent(scanId, {
         type: "ai_progress",
-        data: { scanId, message: "AI analysis completed", progress: 90 },
+        data: { scanId, message: "AI analysis completed", progress: 85 },
       });
     }
 
+    // Calculate scores
     publishScanEvent(scanId, {
       type: "score_calculated",
-      data: { scanId, message: "Calculating scores...", progress: 95 },
+      data: { scanId, message: "Calculating scores...", progress: 90 },
     });
 
     const { calculateScores } = await import("@/lib/audit/scoring");
     await calculateScores(scanId);
 
-    await db
-      .update(scans)
-      .set({ status: "completed", completedAt: new Date() })
-      .where(eq(scans.id, scanId));
-
+    // Mark as completed
+    await db.update(scans).set({ status: "completed", completedAt: new Date() }).where(eq(scans.id, scanId));
     publishScanEvent(scanId, {
       type: "completed",
       data: { scanId, message: "Scan completed!", progress: 100 },
     });
   } catch (error) {
-    const errorMessage =
-      error instanceof Error ? error.message : "Unknown error occurred";
-
-    await db
-      .update(scans)
-      .set({ status: "failed", error: errorMessage })
-      .where(eq(scans.id, scanId));
-
+    const errorMessage = error instanceof Error ? error.message : "Unknown error occurred";
+    await db.update(scans).set({ status: "failed", error: errorMessage }).where(eq(scans.id, scanId));
     publishScanEvent(scanId, {
       type: "error",
       data: { scanId, message: `Scan failed: ${errorMessage}`, progress: 0 },
     });
-
     throw error;
   } finally {
-    await closeBrowser();
+    await closeBrowser(session);
   }
 }
 

@@ -40,19 +40,43 @@ const severityConfig: Record<
 
 interface IssueCardProps {
   issue: AuditIssue;
+  annotationNumber?: number;
+  isHighlighted?: boolean;
 }
 
-export function IssueCard({ issue }: IssueCardProps) {
+export function IssueCard({ issue, annotationNumber, isHighlighted }: IssueCardProps) {
   const config = severityConfig[issue.severity] ?? severityConfig.info;
   const Icon = config.icon;
   const viewportName =
     issue.viewportName ??
     (issue.details?.viewportName as string | undefined);
 
+  const annotationBadgeColor: Record<string, string> = {
+    critical: "bg-red-500 text-white",
+    warning: "bg-amber-500 text-white",
+    info: "bg-blue-500 text-white",
+    pass: "bg-green-500 text-white",
+  };
+
   return (
-    <Card size="sm">
+    <Card
+      size="sm"
+      className={cn(
+        isHighlighted && "ring-2 ring-primary ring-offset-2 ring-offset-background",
+      )}
+    >
       <CardHeader>
         <div className="flex items-start gap-3">
+          {annotationNumber != null && (
+            <span
+              className={cn(
+                "inline-flex items-center justify-center rounded-full size-6 text-xs font-bold shrink-0 mt-0.5",
+                annotationBadgeColor[issue.severity] ?? "bg-blue-500 text-white",
+              )}
+            >
+              {annotationNumber}
+            </span>
+          )}
           <Icon className={cn("h-5 w-5 mt-0.5 shrink-0", config.color)} />
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap mb-1">

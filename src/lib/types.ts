@@ -1,6 +1,26 @@
 // Viewport types
 export type ViewportType = 'mobile' | 'tablet' | 'desktop';
 
+export type BrowserEngine = 'chromium' | 'firefox' | 'webkit';
+
+export interface DevicePreset {
+  name: string;
+  width: number;
+  height: number;
+  type: ViewportType;
+  deviceScaleFactor?: number;
+  isMobile?: boolean;
+  hasTouch?: boolean;
+  userAgent?: string;
+  defaultBrowserType?: BrowserEngine;
+}
+
+export interface BrowserSession {
+  browser: unknown; // Playwright Browser instance
+  engine: BrowserEngine;
+  debuggingPort?: number;
+}
+
 export interface ViewportConfig {
   name: string;
   width: number;
@@ -18,6 +38,10 @@ export type AuditCategory =
   | 'forms'
   | 'visual'
   | 'seo'
+  | 'best-practices'
+  | 'security'
+  | 'html-quality'
+  | 'css-quality'
   | 'ai-analysis';
 
 export type IssueSeverity = 'critical' | 'warning' | 'info' | 'pass';
@@ -126,7 +150,9 @@ export interface ScanEvent {
 // Create scan request
 export interface CreateScanRequest {
   url: string;
-  viewports: string[]; // viewport names
+  viewports?: string[];       // Legacy viewport names
+  devices?: string[];          // New device names
+  browserEngine?: BrowserEngine;
   aiEnabled: boolean;
   aiProvider?: AiProvider;
 }

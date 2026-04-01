@@ -18,7 +18,7 @@ RUN npm run build
 FROM node:22-slim AS runtime-deps
 WORKDIR /deps
 
-RUN echo '{"dependencies":{"playwright":"^1.50","bullmq":"^5","ioredis":"^5","postgres":"^3.4"}}' > package.json && \
+RUN echo '{"dependencies":{"playwright":"^1.50","bullmq":"^5","ioredis":"^5","postgres":"^3.4","@axe-core/playwright":"^4.11","lighthouse":"^13","htmlhint":"^1.9","@projectwallace/css-analyzer":"^9.6"}}' > package.json && \
     npm install --omit=dev
 
 # Stage 4: Production runner

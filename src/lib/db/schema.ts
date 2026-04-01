@@ -17,6 +17,7 @@ export const scans = pgTable('scans', {
   status: text('status').notNull().default('pending'),
   aiEnabled: boolean('ai_enabled').notNull().default(false),
   aiProvider: text('ai_provider'),
+  browserEngine: text('browser_engine').default('chromium'),
   viewports: jsonb('viewports').notNull(),
   overallScore: integer('overall_score'),
   overallGrade: text('overall_grade'),
@@ -44,6 +45,12 @@ export const viewportResults = pgTable('viewport_results', {
   screenshotPath: text('screenshot_path').notNull(),
   domSnapshot: jsonb('dom_snapshot'),
   performanceMetrics: jsonb('performance_metrics'),
+  deviceName: text('device_name'),
+  axeResults: jsonb('axe_results'),
+  responseHeaders: jsonb('response_headers'),
+  pageHtml: text('page_html'),
+  pageCss: text('page_css'),
+  lighthouseJson: jsonb('lighthouse_json'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 });
 
@@ -98,6 +105,7 @@ export const categoryScores = pgTable('category_scores', {
   category: text('category').notNull(),
   score: integer('score').notNull(),
   issueCount: jsonb('issue_count').notNull(),
+  lighthouseScore: integer('lighthouse_score'),
 });
 
 export const categoryScoresRelations = relations(categoryScores, ({ one }) => ({

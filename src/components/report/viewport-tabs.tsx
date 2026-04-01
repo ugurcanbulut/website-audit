@@ -1,10 +1,11 @@
 "use client";
 
 import type { ViewportResult, AuditIssue } from "@/lib/types";
+import type { Annotation } from "@/lib/annotations/mapper";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { IssueCard } from "@/components/report/issue-card";
+import { AnnotatedScreenshot } from "@/components/report/annotated-screenshot";
 import { Monitor, Tablet, Smartphone } from "lucide-react";
-import { ScreenshotGallery, ScreenshotThumbnail } from "@/components/report/screenshot-gallery";
 
 function getDeviceIcon(width: number) {
   if (width >= 1024) return Monitor;
@@ -15,9 +16,10 @@ function getDeviceIcon(width: number) {
 interface ViewportTabsProps {
   viewportResults: ViewportResult[];
   issues: AuditIssue[];
+  annotationsByViewport?: Record<string, Annotation[]>;
 }
 
-export function ViewportTabs({ viewportResults, issues }: ViewportTabsProps) {
+export function ViewportTabs({ viewportResults, issues, annotationsByViewport }: ViewportTabsProps) {
   if (viewportResults.length === 0) {
     return (
       <p className="text-sm text-muted-foreground text-center py-8">
@@ -65,33 +67,25 @@ export function ViewportTabs({ viewportResults, issues }: ViewportTabsProps) {
 
       {viewportResults.map((vr) => {
         const vpIssues = issuesByViewport.get(vr.viewportName) ?? [];
-        const alt = `Screenshot at ${vr.viewportName} (${vr.width}x${vr.height})`;
+        const vpAnnotations = annotationsByViewport?.[vr.viewportName] ?? [];
+        // Build issue-id -> annotation number lookup for this viewport
+        const annotationNumberByIssueId = new Map<string, number>();
+        for (const ann of vpAnnotations) {
+          annotationNumberByIssueId.set(ann.issueId, ann.number);
+        }
 
         return (
           <TabsContent key={vr.viewportName} value={vr.viewportName}>
             <div className="space-y-6 mt-4">
-              {/* Screenshot */}
-              <ScreenshotGallery
+              {/* Screenshot with annotations */}
+              <AnnotatedScreenshot
+                screenshotPath={vr.screenshotPath}
+                viewportName={vr.viewportName}
+                width={vr.width}
+                height={vr.height}
+                annotations={annotationsByViewport?.[vr.viewportName] ?? []}
                 galleryId={`screenshots-vp-${vr.viewportName.replace(/\s+/g, "-")}`}
-              >
-                <div className="rounded-md border bg-muted overflow-hidden">
-                  <div className="px-3 py-2 border-b bg-card flex items-center justify-between">
-                    <p className="text-sm font-medium">
-                      {vr.viewportName}{" "}
-                      <span className="text-muted-foreground font-normal">
-                        ({vr.width} x {vr.height})
-                      </span>
-                    </p>
-                  </div>
-                  <ScreenshotThumbnail
-                    src={vr.screenshotPath}
-                    alt={alt}
-                    className="w-full h-auto object-contain max-h-[600px]"
-                    estimatedWidth={vr.width * 2}
-                    estimatedHeight={vr.height * 6}
-                  />
-                </div>
-              </ScreenshotGallery>
+              />
 
               {/* Issues for this viewport */}
               <div>
@@ -105,7 +99,11 @@ export function ViewportTabs({ viewportResults, issues }: ViewportTabsProps) {
                 ) : (
                   <div className="space-y-3">
                     {vpIssues.map((issue) => (
-                      <IssueCard key={issue.id} issue={issue} />
+                      <IssueCard
+                        key={issue.id}
+                        issue={issue}
+                        annotationNumber={annotationNumberByIssueId.get(issue.id)}
+                      />
                     ))}
                   </div>
                 )}

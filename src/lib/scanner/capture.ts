@@ -1,8 +1,8 @@
-import type { Page, CDPSession } from "playwright";
+import type { Page } from "playwright";
 import path from "path";
 import fs from "fs/promises";
-import type { ViewportConfig, PerformanceMetrics } from "@/lib/types";
-import { getBrowser } from "./browser";
+import type { DevicePreset, PerformanceMetrics } from "@/lib/types";
+import type { BrowserSession } from "./browser";
 
 const SCREENSHOTS_DIR =
   process.env.SCREENSHOTS_DIR || "./public/screenshots";
@@ -11,6 +11,11 @@ export interface CaptureResult {
   screenshotPath: string;
   domSnapshot: DomSnapshot;
   performanceMetrics: PerformanceMetrics;
+  // New in v2:
+  axeResults?: unknown;                    // AxeResults from @axe-core/playwright
+  responseHeaders?: Record<string, string>; // HTTP response headers
+  pageHtml?: string;                        // Full HTML for HTMLHint
+  pageCss?: string;                         // Aggregated CSS for CSS analyzer
 }
 
 export interface DomSnapshot {
@@ -56,31 +61,44 @@ async function autoScroll(page: Page): Promise<void> {
 
 export async function captureViewport(
   url: string,
-  viewport: ViewportConfig,
-  scanId: string
+  device: DevicePreset,
+  scanId: string,
+  session: BrowserSession,
+  options?: {
+    captureHtmlCss?: boolean; // Only true for first viewport
+  }
 ): Promise<CaptureResult> {
-  const browser = await getBrowser();
-  const context = await browser.newContext({
-    viewport: { width: viewport.width, height: viewport.height },
-    userAgent: viewport.type === "mobile"
-      ? "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
-      : undefined,
-    isMobile: viewport.type === "mobile",
-    hasTouch: viewport.type !== "desktop",
+  const context = await session.browser.newContext({
+    viewport: { width: device.width, height: device.height },
+    userAgent: device.userAgent,
+    isMobile: device.isMobile ?? (device.type === "mobile"),
+    hasTouch: device.hasTouch ?? (device.type !== "desktop"),
+    deviceScaleFactor: device.deviceScaleFactor ?? 1,
   });
 
   const page = await context.newPage();
 
   try {
-    // Set up CDP session for performance metrics
-    const cdp = await context.newCDPSession(page);
-    await cdp.send("Performance.enable");
+    // Set up CDP session for performance metrics (Chromium only)
+    let cdp: import("playwright").CDPSession | null = null;
+    if (session.engine === "chromium") {
+      cdp = await context.newCDPSession(page);
+      await cdp.send("Performance.enable");
+    }
 
-    // Navigate and wait for DOM content, then settle
-    await page.goto(url, {
+    // Navigate and capture response headers
+    const response = await page.goto(url, {
       waitUntil: "domcontentloaded",
       timeout: 60000,
     });
+
+    const responseHeaders: Record<string, string> = {};
+    if (response) {
+      const headers = response.headers();
+      for (const [key, value] of Object.entries(headers)) {
+        responseHeaders[key.toLowerCase()] = value;
+      }
+    }
 
     // Wait for load event or timeout gracefully
     await page.waitForLoadState("load").catch(() => {});
@@ -102,12 +120,60 @@ export async function captureViewport(
     const performanceMetrics = await collectPerformanceMetrics(page, cdp);
 
     // Take full-page screenshot
-    const screenshotPath = await takeScreenshot(page, scanId, viewport);
+    const screenshotPath = await takeScreenshot(page, scanId, device);
 
     // Capture DOM snapshot
-    const domSnapshot = await captureDomSnapshot(page, viewport);
+    const domSnapshot = await captureDomSnapshot(page, device);
 
-    return { screenshotPath, domSnapshot, performanceMetrics };
+    // Run axe-core accessibility analysis
+    let axeResults: unknown = null;
+    try {
+      const { AxeBuilder } = await import(/* webpackIgnore: true */ "@axe-core/playwright");
+      const results = await new AxeBuilder({ page })
+        .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
+        .analyze();
+      axeResults = results;
+    } catch (e) {
+      console.warn("axe-core analysis failed:", e instanceof Error ? e.message : e);
+    }
+
+    // Optionally capture HTML and CSS (only for first viewport to save storage)
+    let pageHtml: string | undefined;
+    let pageCss: string | undefined;
+    if (options?.captureHtmlCss) {
+      try {
+        pageHtml = await page.content();
+      } catch {
+        // Ignore HTML capture failure
+      }
+      try {
+        pageCss = await page.evaluate(() => {
+          const sheets: string[] = [];
+          for (const sheet of Array.from(document.styleSheets)) {
+            try {
+              for (const rule of Array.from(sheet.cssRules)) {
+                sheets.push(rule.cssText);
+              }
+            } catch {
+              // Cross-origin stylesheet, skip
+            }
+          }
+          return sheets.join("\n");
+        });
+      } catch {
+        // Ignore CSS capture failure
+      }
+    }
+
+    return {
+      screenshotPath,
+      domSnapshot,
+      performanceMetrics,
+      axeResults,
+      responseHeaders,
+      pageHtml,
+      pageCss,
+    };
   } finally {
     await context.close();
   }
@@ -116,12 +182,12 @@ export async function captureViewport(
 async function takeScreenshot(
   page: Page,
   scanId: string,
-  viewport: ViewportConfig
+  device: DevicePreset
 ): Promise<string> {
   const dir = path.join(SCREENSHOTS_DIR, scanId);
   await fs.mkdir(dir, { recursive: true });
 
-  const filename = `${viewport.name.toLowerCase().replace(/\s+/g, "-")}.png`;
+  const filename = `${device.name.toLowerCase().replace(/\s+/g, "-")}.png`;
   const filepath = path.join(dir, filename);
 
   await page.screenshot({
@@ -136,9 +202,13 @@ async function takeScreenshot(
 
 async function collectPerformanceMetrics(
   page: Page,
-  cdp: CDPSession
+  cdp: import("playwright").CDPSession | null
 ): Promise<PerformanceMetrics> {
-  // Get Web Vitals via JavaScript evaluation
+  // The CDP session is only used for Performance.enable which happens earlier.
+  // Metrics collection uses the JavaScript Performance API via page.evaluate().
+  // When cdp is null (non-Chromium engines), we still get metrics from the API.
+  void cdp; // Acknowledge parameter; CDP enable was done at setup time
+
   const metrics = await page.evaluate(() => {
     return new Promise<Record<string, number>>((resolve) => {
       const result: Record<string, number> = {};
@@ -206,7 +276,7 @@ async function collectPerformanceMetrics(
 
 async function captureDomSnapshot(
   page: Page,
-  viewport: ViewportConfig
+  device: DevicePreset
 ): Promise<DomSnapshot> {
   const snapshot = await page.evaluate(() => {
     const interactiveTags = new Set([

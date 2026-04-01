@@ -1,135 +1,230 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { viewportResults, auditIssues } from "@/lib/db/schema";
+import type { BrowserSession } from "@/lib/scanner/browser";
 import type { DomSnapshot } from "@/lib/scanner/capture";
-import { VIEWPORT_PRESETS } from "@/lib/scanner/viewports";
-import { runAccessibilityChecks } from "./rules/accessibility";
+import { DEVICE_PRESETS } from "@/lib/scanner/devices";
+
+// Runners
+import { processAxeResults } from "./runners/axe-runner";
+import { runLighthouse } from "./runners/lighthouse-runner";
+import { runHtmlHint } from "./runners/html-runner";
+import { runCssAnalysis } from "./runners/css-runner";
+import { runSecurityChecks } from "./runners/security-runner";
+
+// Kept custom rules (unique cross-viewport value)
 import { runResponsiveChecks } from "./rules/responsive";
-import { runPerformanceChecks } from "./rules/performance";
 import { runTypographyChecks } from "./rules/typography";
 import { runTouchTargetChecks } from "./rules/touch-targets";
-import { runFormChecks } from "./rules/forms";
 import { runVisualConsistencyChecks } from "./rules/visual";
-import { runSeoChecks } from "./rules/seo";
 
-export async function runAuditEngine(scanId: string): Promise<void> {
+interface AuditIssueInsert {
+  scanId: string;
+  viewportResultId?: string | null;
+  category: string;
+  severity: string;
+  ruleId: string;
+  title: string;
+  description: string;
+  elementSelector?: string | null;
+  elementHtml?: string | null;
+  recommendation?: string | null;
+  details?: Record<string, unknown> | null;
+}
+
+// Store lighthouse scores for scoring phase
+let lastLighthouseScores: Record<string, number> | null = null;
+
+export function getLastLighthouseScores(): Record<string, number> | null {
+  return lastLighthouseScores;
+}
+
+export async function runAuditEngine(
+  scanId: string,
+  url: string,
+  session: BrowserSession
+): Promise<void> {
   const results = await db.query.viewportResults.findMany({
     where: eq(viewportResults.scanId, scanId),
   });
 
   if (results.length === 0) return;
 
+  const allIssues: AuditIssueInsert[] = [];
+
   // Build lookup maps
-  const snapshotMap = new Map<string, DomSnapshot>();
-  const metricsArray: { viewportName: string; metrics: Record<string, unknown> }[] = [];
-
-  for (const result of results) {
-    const snapshot = result.domSnapshot as DomSnapshot | null;
-    if (snapshot) {
-      snapshotMap.set(result.viewportName, snapshot);
-    }
-    if (result.performanceMetrics) {
-      metricsArray.push({
-        viewportName: result.viewportName,
-        metrics: result.performanceMetrics as Record<string, unknown>,
-      });
-    }
-  }
-
-  // Build viewport result ID lookup
   const viewportResultIds = new Map<string, string>();
   for (const result of results) {
     viewportResultIds.set(result.viewportName, result.id);
   }
 
   function getViewportType(name: string): string {
-    const preset = VIEWPORT_PRESETS.find((v) => v.name === name);
+    const preset = DEVICE_PRESETS.find((d) => d.name === name);
     return preset?.type ?? "desktop";
   }
 
-  // Collect all issues
-  const allIssues: Array<{
-    category: string;
-    severity: string;
-    ruleId: string;
-    title: string;
-    description: string;
-    elementSelector?: string;
-    elementHtml?: string;
-    recommendation?: string;
-    details?: Record<string, unknown>;
-    viewportResultId?: string;
-  }> = [];
+  // ── Per-viewport checks ────────────────────────────────────────────
 
-  // --- Per-viewport checks ---
-  for (const [viewportName, snapshot] of snapshotMap) {
-    const viewportResultId = viewportResultIds.get(viewportName);
+  for (const result of results) {
+    const viewportResultId = result.id;
+    const viewportName = result.viewportName;
     const viewportType = getViewportType(viewportName);
+    const snapshot = result.domSnapshot as DomSnapshot | null;
 
-    // Accessibility
-    const a11yIssues = runAccessibilityChecks(snapshot, viewportName);
-    for (const issue of a11yIssues) {
-      allIssues.push({ ...issue, viewportResultId });
+    // 1. axe-core results (REPLACES custom accessibility.ts)
+    const axeData = result.axeResults as Record<string, unknown> | null;
+    if (axeData) {
+      try {
+        const axeIssues = processAxeResults({
+          axeResults: axeData as any,
+          viewportName,
+        });
+        for (const issue of axeIssues) {
+          allIssues.push({ ...issue, scanId, viewportResultId });
+        }
+      } catch (e) {
+        console.warn(`axe-runner failed for ${viewportName}:`, e);
+      }
     }
 
-    // Typography
-    const typoIssues = runTypographyChecks(snapshot, viewportName, viewportType);
-    for (const issue of typoIssues) {
-      allIssues.push({ ...issue, viewportResultId });
+    // 2. HTMLHint (run once on first viewport)
+    const pageHtml = result.pageHtml as string | null;
+    if (pageHtml && result.id === results[0].id) {
+      try {
+        const htmlIssues = await runHtmlHint({ html: pageHtml, viewportName });
+        for (const issue of htmlIssues) {
+          allIssues.push({ ...issue, scanId, viewportResultId });
+        }
+      } catch (e) {
+        console.warn("HTMLHint failed:", e);
+      }
     }
 
-    // Touch targets (mobile/tablet only)
-    const touchIssues = runTouchTargetChecks(snapshot, viewportName, viewportType);
-    for (const issue of touchIssues) {
-      allIssues.push({ ...issue, viewportResultId });
+    // 3. Security headers (run once on first viewport)
+    const responseHeaders = result.responseHeaders as Record<string, string> | null;
+    if (responseHeaders && result.id === results[0].id) {
+      try {
+        const secIssues = runSecurityChecks({ responseHeaders, url });
+        for (const issue of secIssues) {
+          allIssues.push({ ...issue, scanId, viewportResultId });
+        }
+      } catch (e) {
+        console.warn("Security checks failed:", e);
+      }
     }
 
-    // Forms
-    const formIssues = runFormChecks(snapshot, viewportName, viewportType);
-    for (const issue of formIssues) {
-      allIssues.push({ ...issue, viewportResultId });
-    }
+    // 4. Kept custom rules (snapshot-based)
+    if (snapshot) {
+      // Typography
+      const typoIssues = runTypographyChecks(snapshot, viewportName, viewportType);
+      for (const issue of typoIssues) {
+        allIssues.push({ ...issue, scanId, viewportResultId });
+      }
 
-    // SEO (run on first viewport only to avoid duplicates)
-    if (viewportName === results[0].viewportName) {
-      const seoIssues = runSeoChecks(snapshot, viewportName);
-      for (const issue of seoIssues) {
-        allIssues.push({ ...issue, viewportResultId });
+      // Touch targets (mobile/tablet only)
+      const touchIssues = runTouchTargetChecks(snapshot, viewportName, viewportType);
+      for (const issue of touchIssues) {
+        allIssues.push({ ...issue, scanId, viewportResultId });
       }
     }
   }
 
-  // --- Cross-viewport checks ---
+  // ── Cross-viewport checks (KEPT, unique value) ────────────────────
+
+  const snapshotMap = new Map<string, DomSnapshot>();
+  for (const result of results) {
+    const snapshot = result.domSnapshot as DomSnapshot | null;
+    if (snapshot) {
+      snapshotMap.set(result.viewportName, snapshot);
+    }
+  }
+
   if (snapshotMap.size > 0) {
     const responsiveIssues = runResponsiveChecks(snapshotMap);
     for (const issue of responsiveIssues) {
-      allIssues.push(issue);
+      allIssues.push({ ...issue, scanId });
     }
 
     const visualIssues = runVisualConsistencyChecks(snapshotMap);
     for (const issue of visualIssues) {
-      allIssues.push(issue);
+      allIssues.push({ ...issue, scanId });
     }
   }
 
-  // --- Performance checks ---
-  if (metricsArray.length > 0) {
-    const perfIssues = runPerformanceChecks(metricsArray);
-    const firstViewportResultId = viewportResultIds.get(metricsArray[0].viewportName);
-    for (const issue of perfIssues) {
-      allIssues.push({ ...issue, viewportResultId: firstViewportResultId });
+  // ── CSS analysis (run once) ───────────────────────────────────────
+
+  const firstResult = results[0];
+  const pageCss = firstResult?.pageCss as string | null;
+  if (pageCss) {
+    try {
+      const cssOutput = await runCssAnalysis({
+        css: pageCss,
+        viewportName: firstResult.viewportName,
+      });
+      for (const issue of cssOutput.issues) {
+        allIssues.push({
+          ...issue,
+          scanId,
+          viewportResultId: firstResult.id,
+        });
+      }
+    } catch (e) {
+      console.warn("CSS analysis failed:", e);
     }
   }
 
-  // --- Save all issues to DB ---
+  // ── Lighthouse (Chromium only) ────────────────────────────────────
+
+  lastLighthouseScores = null;
+
+  if (session.debuggingPort) {
+    try {
+      console.log(`Running Lighthouse on ${url} (port ${session.debuggingPort})...`);
+      const lhOutput = await runLighthouse({
+        url,
+        debuggingPort: session.debuggingPort,
+        categories: ["performance", "best-practices", "seo"],
+      });
+
+      // Store lighthouse scores for scoring phase
+      lastLighthouseScores = {};
+      if (lhOutput.categoryScores.performance !== undefined) {
+        lastLighthouseScores.performance = lhOutput.categoryScores.performance;
+      }
+      if (lhOutput.categoryScores.bestPractices !== undefined) {
+        lastLighthouseScores["best-practices"] = lhOutput.categoryScores.bestPractices;
+      }
+      if (lhOutput.categoryScores.seo !== undefined) {
+        lastLighthouseScores.seo = lhOutput.categoryScores.seo;
+      }
+
+      // Add Lighthouse issues
+      for (const issue of lhOutput.issues) {
+        allIssues.push({ ...issue, scanId, viewportResultId: firstResult.id });
+      }
+
+      // Store LHR JSON on first viewport result
+      await db.update(viewportResults)
+        .set({ lighthouseJson: lhOutput.lhr })
+        .where(eq(viewportResults.id, firstResult.id));
+
+      console.log(`Lighthouse complete: perf=${lastLighthouseScores.performance}, seo=${lastLighthouseScores.seo}`);
+    } catch (e) {
+      console.warn("Lighthouse failed:", e instanceof Error ? e.message : e);
+    }
+  } else {
+    console.log(`Lighthouse skipped (engine: ${session.engine}, no debugging port)`);
+  }
+
+  // ── Save all issues to DB ─────────────────────────────────────────
+
   if (allIssues.length > 0) {
-    // Insert in batches to avoid huge single inserts
     const batchSize = 100;
     for (let i = 0; i < allIssues.length; i += batchSize) {
       const batch = allIssues.slice(i, i + batchSize);
       await db.insert(auditIssues).values(
         batch.map((issue) => ({
-          scanId,
+          scanId: issue.scanId,
           viewportResultId: issue.viewportResultId ?? null,
           category: issue.category,
           severity: issue.severity,

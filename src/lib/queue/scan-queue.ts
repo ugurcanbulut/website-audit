@@ -1,10 +1,12 @@
 import { getRedisConnection } from "./connection";
-import type { ViewportConfig, AiProvider } from "@/lib/types";
+import type { ViewportConfig, AiProvider, DevicePreset, BrowserEngine } from "@/lib/types";
 
 export interface ScanJobData {
   scanId: string;
   url: string;
-  viewports: ViewportConfig[];
+  viewports: ViewportConfig[];  // Legacy compat
+  devices?: DevicePreset[];     // New device presets
+  browserEngine?: BrowserEngine;
   aiEnabled: boolean;
   aiProvider?: AiProvider;
 }

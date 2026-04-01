@@ -17,6 +17,9 @@ import type {
   AuditCategory,
   IssueSeverity,
 } from "@/lib/types";
+import { mapIssuesToAnnotations } from "@/lib/annotations/mapper";
+import type { Annotation } from "@/lib/annotations/mapper";
+import type { DomSnapshot } from "@/lib/scanner/capture";
 import { ScanProgress } from "@/components/scan/scan-progress";
 import { ReportOverview } from "@/components/report/report-overview";
 import { ReportTabs } from "@/components/report/report-tabs";
@@ -164,6 +167,19 @@ export default async function ScanDetailPage({ params }: ScanDetailPageProps) {
     }
   }
 
+  // Compute annotations per viewport
+  const annotationsByViewport: Record<string, Annotation[]> = {};
+  for (const vr of vpResultsRaw) {
+    const snapshot = vr.domSnapshot as DomSnapshot | null;
+    if (snapshot) {
+      annotationsByViewport[vr.viewportName] = mapIssuesToAnnotations(
+        issues,
+        snapshot,
+        vr.viewportName,
+      );
+    }
+  }
+
   const overallScore = scan.overallScore ?? 0;
   const overallGrade = (scan.overallGrade as Grade | null) ?? "F";
 
@@ -203,7 +219,11 @@ export default async function ScanDetailPage({ params }: ScanDetailPageProps) {
   const screenshotsContent = <ScreenshotCompare viewportResults={vpResults} />;
 
   const viewportContent = (
-    <ViewportTabs viewportResults={vpResults} issues={issues} />
+    <ViewportTabs
+      viewportResults={vpResults}
+      issues={issues}
+      annotationsByViewport={annotationsByViewport}
+    />
   );
 
   return (
