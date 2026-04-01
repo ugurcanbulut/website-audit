@@ -11,7 +11,12 @@ For each issue found, provide:
 - title: Short descriptive title
 - description: Detailed explanation of the issue
 - recommendation: How to fix it
-- viewport: Which viewport(s) this affects (or "all")
+- viewport: Which viewport this affects (use the exact viewport name provided, or "all")
+- region: The approximate location of the issue on the screenshot, as pixel coordinates:
+  { "x": number, "y": number, "width": number, "height": number }
+  where (0,0) is the top-left corner of the screenshot.
+  Use the screenshot dimensions provided to estimate coordinates.
+  If you cannot pinpoint a specific region, set region to null.
 
 Respond ONLY with valid JSON in this format:
 {
@@ -21,21 +26,42 @@ Respond ONLY with valid JSON in this format:
       "title": "string",
       "description": "string",
       "recommendation": "string",
-      "viewport": "string"
+      "viewport": "string",
+      "region": { "x": number, "y": number, "width": number, "height": number } | null
     }
   ],
   "summary": "Brief overall assessment"
 }`;
 
-export function buildAnalysisPrompt(viewportNames: string[]): string {
-  return `Analyze these website screenshots captured at the following viewports: ${viewportNames.join(", ")}.
+export interface ViewportDimensions {
+  name: string;
+  width: number;
+  height: number;
+}
+
+export function buildAnalysisPrompt(
+  viewportNames: string[],
+  dimensions?: ViewportDimensions[]
+): string {
+  let prompt = `Analyze these website screenshots captured at the following viewports: ${viewportNames.join(", ")}.
 
 Look for UI/UX issues across all viewports. Pay special attention to:
 - How the layout adapts from desktop to mobile
 - Whether important content is accessible at all sizes
 - Visual consistency and design quality
 - Navigation and interaction patterns
-- Readability and information architecture
+- Readability and information architecture`;
+
+  if (dimensions && dimensions.length > 0) {
+    prompt += `\n\nScreenshot dimensions for coordinate reference (use these to estimate region positions):`;
+    for (const dim of dimensions) {
+      prompt += `\n- ${dim.name}: ${dim.width}px wide x ${dim.height}px tall`;
+    }
+  }
+
+  prompt += `\n\nFor each issue, provide a "region" with approximate pixel coordinates showing where the problem is located on the screenshot. This will be used to highlight the issue visually.
 
 Provide your analysis as structured JSON.`;
+
+  return prompt;
 }
