@@ -297,29 +297,41 @@ async function takeScreenshot(
     const isFirst = i === 0;
     const isLast = i === numTiles - 1;
 
-    // Scroll to position
-    await page.evaluate((y: number) => window.scrollTo(0, y), scrollY);
-    await page.waitForTimeout(150); // Let rendering settle
+    // Scroll to exact position and verify
+    await page.evaluate((y: number) => {
+      window.scrollTo({ top: y, behavior: "instant" });
+    }, scrollY);
+
+    // Wait for scroll to complete and layout to settle
+    await page.waitForTimeout(300);
+
+    // Verify we're at the right scroll position
+    const actualScroll = await page.evaluate(() => window.scrollY);
+    if (Math.abs(actualScroll - scrollY) > 2) {
+      // Retry scroll if position is off
+      await page.evaluate((y: number) => window.scrollTo(0, y), scrollY);
+      await page.waitForTimeout(200);
+    }
 
     // Selective visibility
     if (isFirst) {
-      // Show headers, hide footers
       await setElementVisibility(headerSelectors, true);
       await setElementVisibility(footerSelectors, false);
     } else if (isLast) {
-      // Hide headers, show footers
       await setElementVisibility(headerSelectors, false);
       await setElementVisibility(footerSelectors, true);
     } else {
-      // Hide all fixed elements
       await setElementVisibility(allFixedSelectors, false);
     }
+
+    // Small pause after visibility change for rendering
+    await page.waitForTimeout(100);
 
     // Calculate clip height for last tile (avoid whitespace)
     const remainingHeight = contentHeight - scrollY;
     const tileHeight = isLast ? Math.min(remainingHeight, viewportHeight) : viewportHeight;
 
-    // Capture tile
+    // Capture tile — clip is relative to the current viewport (what's visible)
     const tile = await page.screenshot({
       fullPage: false,
       type: "png",
