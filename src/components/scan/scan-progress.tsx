@@ -40,7 +40,7 @@ interface ScanProgressProps {
 export function ScanProgress({ scanId, viewportNames }: ScanProgressProps) {
   const router = useRouter();
   const [isCancelling, setIsCancelling] = useState(false);
-  const { events, latestEvent, isConnected, isComplete, progress } =
+  const { events, latestEvent, isConnected, isComplete, progress, completedViewports } =
     useScanProgress(scanId);
 
   async function handleCancel() {
@@ -52,13 +52,6 @@ export function ScanProgress({ scanId, viewportNames }: ScanProgressProps) {
       setIsCancelling(false);
     }
   }
-
-  // Derive completed viewports from events
-  const completedViewports = new Set(
-    events
-      .filter((e) => e.type === "viewport_complete" && e.data.viewport)
-      .map((e) => e.data.viewport!),
-  );
 
   const failed = latestEvent?.type === "error";
 
