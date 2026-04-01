@@ -31,7 +31,7 @@ import {
   Card,
   CardContent,
 } from "@/components/ui/card";
-import { XCircle } from "lucide-react";
+import { XCircle, FileDown } from "lucide-react";
 import Link from "next/link";
 import { buttonVariants } from "@/lib/button-variants";
 import { cn } from "@/lib/utils";
@@ -274,7 +274,17 @@ export default async function ScanDetailPage({ params }: ScanDetailPageProps) {
       <div className="flex flex-1 flex-col gap-4 p-4 lg:p-6">
         <div className="flex items-start justify-between gap-4">
           <p className="text-muted-foreground break-all">{scan.url}</p>
-          <DeleteScanButton scanId={id} />
+          <div className="flex items-center gap-2 shrink-0">
+            <a
+              href={`/api/scans/${id}/pdf`}
+              download
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+            >
+              <FileDown className="size-4 mr-1" />
+              PDF Report
+            </a>
+            <DeleteScanButton scanId={id} />
+          </div>
         </div>
 
         <ReportTabs
