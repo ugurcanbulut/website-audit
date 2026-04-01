@@ -9,11 +9,35 @@ import {
 } from 'drizzle-orm/pg-core';
 import { relations } from 'drizzle-orm';
 
+// ── Scan Batches ─────────────────────────────────────────────────────────────
+
+export const scanBatches = pgTable('scan_batches', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: text('name'),
+  urls: jsonb('urls').notNull(), // string[]
+  status: text('status').notNull().default('pending'),
+  totalScans: integer('total_scans').notNull().default(0),
+  completedScans: integer('completed_scans').notNull().default(0),
+  overallScore: integer('overall_score'),
+  overallGrade: text('overall_grade'),
+  browserEngine: text('browser_engine').default('chromium'),
+  viewports: jsonb('viewports'), // shared viewport config for all scans
+  aiEnabled: boolean('ai_enabled').notNull().default(false),
+  aiProvider: text('ai_provider'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  completedAt: timestamp('completed_at'),
+});
+
+export const scanBatchesRelations = relations(scanBatches, ({ many }) => ({
+  scans: many(scans),
+}));
+
 // ── Scans ────────────────────────────────────────────────────────────────────
 
 export const scans = pgTable('scans', {
   id: uuid('id').primaryKey().defaultRandom(),
   url: text('url').notNull(),
+  batchId: uuid('batch_id').references(() => scanBatches.id, { onDelete: 'cascade' }),
   status: text('status').notNull().default('pending'),
   aiEnabled: boolean('ai_enabled').notNull().default(false),
   aiProvider: text('ai_provider'),
@@ -26,7 +50,11 @@ export const scans = pgTable('scans', {
   completedAt: timestamp('completed_at'),
 });
 
-export const scansRelations = relations(scans, ({ many }) => ({
+export const scansRelations = relations(scans, ({ one, many }) => ({
+  batch: one(scanBatches, {
+    fields: [scans.batchId],
+    references: [scanBatches.id],
+  }),
   viewportResults: many(viewportResults),
   auditIssues: many(auditIssues),
   categoryScores: many(categoryScores),
@@ -112,5 +140,56 @@ export const categoryScoresRelations = relations(categoryScores, ({ one }) => ({
   scan: one(scans, {
     fields: [categoryScores.scanId],
     references: [scans.id],
+  }),
+}));
+
+// ── Crawls ───────────────────────────────────────────────────────────────
+export const crawls = pgTable('crawls', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  seedUrl: text('seed_url').notNull(),
+  status: text('status').notNull().default('pending'),
+  config: jsonb('config').notNull(), // CrawlConfig
+  totalPages: integer('total_pages').default(0),
+  pagesCrawled: integer('pages_crawled').default(0),
+  error: text('error'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  completedAt: timestamp('completed_at'),
+});
+
+export const crawlsRelations = relations(crawls, ({ many }) => ({
+  pages: many(crawlPages),
+}));
+
+export const crawlPages = pgTable('crawl_pages', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  crawlId: uuid('crawl_id').notNull().references(() => crawls.id, { onDelete: 'cascade' }),
+  url: text('url').notNull(),
+  statusCode: integer('status_code'),
+  redirectUrl: text('redirect_url'),
+  contentType: text('content_type'),
+  responseTimeMs: integer('response_time_ms'),
+  contentSize: integer('content_size'),
+  title: text('title'),
+  metaDescription: text('meta_description'),
+  metaRobots: text('meta_robots'),
+  canonicalUrl: text('canonical_url'),
+  h1: jsonb('h1'), // string[]
+  h2: jsonb('h2'), // string[]
+  wordCount: integer('word_count'),
+  internalLinks: jsonb('internal_links'), // {href, anchor, nofollow}[]
+  externalLinks: jsonb('external_links'),
+  images: jsonb('images'), // {src, alt, width?, height?}[]
+  structuredData: jsonb('structured_data'),
+  ogTags: jsonb('og_tags'),
+  hreflang: jsonb('hreflang'),
+  securityHeaders: jsonb('security_headers'),
+  errors: jsonb('errors'), // string[]
+  crawledAt: timestamp('crawled_at').defaultNow(),
+});
+
+export const crawlPagesRelations = relations(crawlPages, ({ one }) => ({
+  crawl: one(crawls, {
+    fields: [crawlPages.crawlId],
+    references: [crawls.id],
   }),
 }));

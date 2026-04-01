@@ -6,10 +6,12 @@ import { usePathname } from "next/navigation"
 import {
   Monitor,
   Plus,
+  Layers,
   Settings,
   LayoutDashboard,
   History,
   HelpCircle,
+  Globe,
 } from "lucide-react"
 import {
   Sidebar,
@@ -26,7 +28,12 @@ import {
 const navMain = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
   { title: "New Scan", url: "/scan/new", icon: Plus },
+  { title: "Batch Scan", url: "/scan/batch", icon: Layers },
   { title: "History", url: "/history", icon: History },
+]
+
+const navCrawler = [
+  { title: "New Crawl", url: "/crawl/new", icon: Globe },
 ]
 
 const navSecondary = [
@@ -66,6 +73,24 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                   <SidebarMenuButton
                     render={<Link href={item.url} />}
                     isActive={pathname === item.url}
+                  >
+                    <item.icon className="size-4" />
+                    <span>{item.title}</span>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
+              ))}
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
+        <SidebarGroup>
+          <SidebarGroupLabel>SEO Crawler</SidebarGroupLabel>
+          <SidebarGroupContent>
+            <SidebarMenu>
+              {navCrawler.map((item) => (
+                <SidebarMenuItem key={item.title}>
+                  <SidebarMenuButton
+                    render={<Link href={item.url} />}
+                    isActive={pathname === item.url || pathname.startsWith("/crawl/")}
                   >
                     <item.icon className="size-4" />
                     <span>{item.title}</span>
