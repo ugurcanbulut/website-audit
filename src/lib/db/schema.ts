@@ -89,6 +89,7 @@ export const viewportResults = pgTable('viewport_results', {
   lighthouseJson: jsonb('lighthouse_json'),
   screenshotWidth: integer('screenshot_width'),
   screenshotHeight: integer('screenshot_height'),
+  viewportScreenshotPath: text('viewport_screenshot_path'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 }, (t) => ({
   scanIdIdx: index('viewport_results_scan_id_idx').on(t.scanId),

@@ -9,6 +9,7 @@ const SCREENSHOTS_DIR =
 
 export interface CaptureResult {
   screenshotPath: string;
+  viewportScreenshotPath?: string;
   domSnapshot: DomSnapshot;
   performanceMetrics: PerformanceMetrics;
   screenshotWidth?: number;
@@ -37,53 +38,83 @@ export interface DomElement {
   isInteractive: boolean;
 }
 
-interface FixedOrStickyElement {
-  captureId: string;
-  position: "fixed" | "sticky";
-  type: "header" | "footer" | "other";
-  height: number;
-  topOffset: number;
+// ─────────────────────────────────────────────────────────────────────────────
+// Stabilization stylesheet — applied only during screenshot calls via
+// Playwright's `style` option. Normalizes sticky/fixed positioning so each
+// sticky element renders once in its natural flow position (matches Chromatic /
+// Percy / Urlbox-native behavior) and pauses animations.
+// ─────────────────────────────────────────────────────────────────────────────
+const STABILIZATION_CSS = `
+/* Elementor Pro sticky (adds .elementor-sticky--active + inline position:fixed) */
+.elementor-sticky--active,
+.elementor-sticky--effects,
+/* Generic sticky/fixed markers commonly used by WordPress/Bootstrap/Tailwind */
+[class*="is-sticky"],
+[data-sticky="true"],
+.sticky,
+.sticky-top,
+.sticky-bottom,
+.sticky-header,
+.sticky-footer,
+.fixed-top,
+.fixed-bottom {
+  position: static !important;
+  top: auto !important;
+  bottom: auto !important;
+  left: auto !important;
+  right: auto !important;
+  transform: none !important;
 }
 
-async function smartAutoScroll(page: Page): Promise<void> {
+/* Elementor's spacer placeholder that exists only while a sibling is fixed;
+   when we revert sticky to static, the spacer becomes double empty space. */
+.elementor-sticky__spacer,
+[class*="elementor-sticky__spacer"] {
+  display: none !important;
+}
+
+/* Cancel CSS animations and transitions for a consistent frame.
+   Playwright's animations:"disabled" covers most cases but explicit rules
+   catch JS-driven inline transitions. */
+*, *::before, *::after {
+  animation-delay: -1ms !important;
+  animation-duration: 1ms !important;
+  animation-iteration-count: 1 !important;
+  animation-play-state: paused !important;
+  transition-duration: 0s !important;
+  transition-delay: 0s !important;
+  scroll-behavior: auto !important;
+  caret-color: transparent !important;
+}
+`;
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Phase helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function waitForNetworkIdle(page: Page, timeout = 3000): Promise<void> {
+  try {
+    await page.waitForLoadState("networkidle", { timeout });
+  } catch {
+    // Pages with persistent connections (SSE, WebSocket) never reach idle.
+  }
+}
+
+async function waitForMediaReady(page: Page): Promise<void> {
+  // Wait for fonts, images with src set, and videos whose sources are already
+  // injected. Anything still missing a src is considered intentionally absent.
   await page.evaluate(async () => {
-    await new Promise<void>((resolve) => {
-      const viewportHeight = window.innerHeight;
-      let currentScroll = 0;
-      const maxScroll = document.documentElement.scrollHeight;
-      const safetyTimeout = setTimeout(resolve, 30000);
-
-      const scrollStep = () => {
-        currentScroll += Math.floor(viewportHeight * 0.75);
-        if (currentScroll >= maxScroll) {
-          window.scrollTo(0, maxScroll);
-          clearTimeout(safetyTimeout);
-          resolve();
-          return;
-        }
-        window.scrollTo({ top: currentScroll, behavior: "instant" });
-        setTimeout(scrollStep, 150);
-      };
-
-      scrollStep();
-    });
-  });
-}
-
-async function waitForMediaToLoad(page: Page): Promise<void> {
-  await page.evaluate(() => {
     const promises: Promise<void>[] = [];
 
-    promises.push(
-      document.fonts.ready.then(() => {}).catch(() => {}),
-    );
+    promises.push(document.fonts.ready.then(() => {}).catch(() => {}));
 
     const images = Array.from(document.querySelectorAll("img"));
     for (const img of images) {
+      if (!img.src) continue;
       if (img.complete && img.naturalWidth > 0) continue;
       promises.push(
         new Promise<void>((resolve) => {
-          const timeout = setTimeout(resolve, 10000);
+          const timeout = setTimeout(resolve, 8000);
           const done = () => {
             clearTimeout(timeout);
             resolve();
@@ -96,114 +127,90 @@ async function waitForMediaToLoad(page: Page): Promise<void> {
 
     const videos = Array.from(document.querySelectorAll("video"));
     for (const video of videos) {
-      promises.push(
-        new Promise<void>((resolve) => {
-          const timeout = setTimeout(resolve, 15000);
-
-          const paintVideoFrame = () => {
-            clearTimeout(timeout);
-            try {
-              if (video.videoWidth > 0) {
-                const canvas = document.createElement("canvas");
-                canvas.width = video.videoWidth;
-                canvas.height = video.videoHeight;
-                const ctx = canvas.getContext("2d");
-                if (ctx) {
-                  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-                  const dataUrl = canvas.toDataURL("image/png");
-                  const rect = video.getBoundingClientRect();
-                  const overlay = document.createElement("img");
-                  overlay.src = dataUrl;
-                  overlay.style.position = "absolute";
-                  overlay.style.top = "0";
-                  overlay.style.left = "0";
-                  overlay.style.width = "100%";
-                  overlay.style.height = "100%";
-                  overlay.style.objectFit = video.style.objectFit || "cover";
-                  overlay.style.zIndex = "1";
-                  overlay.style.pointerEvents = "none";
-                  overlay.setAttribute("data-video-overlay", "");
-                  const container = document.createElement("div");
-                  container.style.position = "relative";
-                  container.style.width = rect.width + "px";
-                  container.style.height = rect.height + "px";
-                  container.style.overflow = "hidden";
-                  container.setAttribute("data-video-wrapper", "");
-                  video.parentNode!.insertBefore(container, video);
-                  container.appendChild(video);
-                  container.appendChild(overlay);
-                }
+      if (!video.src && video.querySelectorAll("source").length === 0) {
+        // Elementor and similar page builders inject <source> tags lazily.
+        // Wait briefly for that to happen, but do not block forever.
+        promises.push(
+          new Promise<void>((resolve) => {
+            const deadline = Date.now() + 5000;
+            const check = () => {
+              const hasSrc =
+                video.src || video.querySelectorAll("source").length > 0;
+              if (hasSrc || Date.now() > deadline) {
+                resolve();
+                return;
               }
-            } catch {}
-            try { video.pause(); } catch {}
-            resolve();
-          };
+              setTimeout(check, 200);
+            };
+            check();
+          }),
+        );
+        continue;
+      }
 
-          const tryPlayAndWait = () => {
-            video.play().catch(() => {});
-            if (typeof video.requestVideoFrameCallback === "function") {
-              const frameTimeout = setTimeout(paintVideoFrame, 5000);
-              video.requestVideoFrameCallback(() => {
-                clearTimeout(frameTimeout);
-                setTimeout(paintVideoFrame, 100);
-              });
-            } else {
-              setTimeout(paintVideoFrame, 3000);
-            }
-          };
+      if (video.readyState >= 2) continue;
 
-          if (video.readyState >= 3) {
-            tryPlayAndWait();
-          } else {
-            video.addEventListener("canplay", tryPlayAndWait, { once: true });
-            video.addEventListener("error", () => {
-              clearTimeout(timeout);
-              resolve();
-            }, { once: true });
-            video.play().catch(() => {});
-          }
-        }),
-      );
-    }
-
-    const allElements = Array.from(document.querySelectorAll("*"));
-    for (const el of allElements) {
-      const style = window.getComputedStyle(el);
-      const bgImage = style.backgroundImage;
-      if (!bgImage || bgImage === "none") continue;
-      const match = bgImage.match(/url\(["']?(.*?)["']?\)/);
-      if (!match) continue;
       promises.push(
         new Promise<void>((resolve) => {
-          const timeout = setTimeout(resolve, 8000);
-          const img = new Image();
-          img.addEventListener("load", () => {
+          const timeout = setTimeout(resolve, 10000);
+          const done = () => {
             clearTimeout(timeout);
             resolve();
-          });
-          img.addEventListener("error", () => {
-            clearTimeout(timeout);
-            resolve();
-          });
-          img.src = match[1];
+          };
+          video.addEventListener("loadeddata", done, { once: true });
+          video.addEventListener("canplay", done, { once: true });
+          video.addEventListener("error", done, { once: true });
+          // Some browsers don't advance past readyState=0 until play() is called.
+          video.play().catch(() => {});
         }),
       );
     }
 
-    return Promise.all(promises);
+    await Promise.all(promises);
   });
 }
 
-async function waitForNetworkIdle(
-  page: Page,
-  timeout = 3000,
-): Promise<void> {
-  try {
-    await page.waitForLoadState("networkidle", { timeout });
-  } catch {
-    // Pages with persistent connections (SSE, WebSocket) will never reach idle
-  }
+async function driveScroll(page: Page): Promise<void> {
+  // Scroll to the bottom in roughly viewport-sized steps to trigger
+  // IntersectionObserver-based lazy loading and scroll-position animations.
+  await page.evaluate(async () => {
+    await new Promise<void>((resolve) => {
+      const viewportHeight = window.innerHeight;
+      const stepSize = Math.max(200, Math.floor(viewportHeight * 0.75));
+      let lastHeight = document.documentElement.scrollHeight;
+      let stableCount = 0;
+
+      const tick = () => {
+        const currentScroll = window.scrollY + window.innerHeight;
+        const docHeight = document.documentElement.scrollHeight;
+
+        if (docHeight === lastHeight) {
+          stableCount++;
+        } else {
+          stableCount = 0;
+          lastHeight = docHeight;
+        }
+
+        // Reached the bottom and height has been stable for two ticks.
+        if (currentScroll >= docHeight && stableCount >= 2) {
+          resolve();
+          return;
+        }
+
+        window.scrollBy({ top: stepSize, behavior: "instant" as ScrollBehavior });
+        setTimeout(tick, 150);
+      };
+
+      // Safety timeout — never block capture longer than 20s.
+      setTimeout(resolve, 20000);
+      tick();
+    });
+  });
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Main capture
+// ─────────────────────────────────────────────────────────────────────────────
 
 export async function captureViewport(
   url: string,
@@ -231,6 +238,7 @@ export async function captureViewport(
       await cdp.send("Performance.enable");
     }
 
+    // ── Phase 1: Navigate ───────────────────────────────────────────────────
     const response = await page.goto(url, {
       waitUntil: "domcontentloaded",
       timeout: 60000,
@@ -238,47 +246,27 @@ export async function captureViewport(
 
     const responseHeaders: Record<string, string> = {};
     if (response) {
-      const headers = response.headers();
-      for (const [key, value] of Object.entries(headers)) {
+      for (const [key, value] of Object.entries(response.headers())) {
         responseHeaders[key.toLowerCase()] = value;
       }
     }
 
+    // ── Phase 2: Load ───────────────────────────────────────────────────────
     await page.waitForLoadState("load").catch(() => {});
+    await waitForMediaReady(page);
 
-    await waitForMediaToLoad(page);
-
-    await smartAutoScroll(page);
-
+    // ── Phase 3: Drive (trigger lazy loads / scroll-triggered animations) ──
+    await driveScroll(page);
     await waitForNetworkIdle(page, 3000);
+    await waitForMediaReady(page);
 
-    await waitForMediaToLoad(page);
-
+    // Return to scroll 0 for consistent coordinate frame.
     await page.evaluate(() => window.scrollTo(0, 0));
     await page.waitForTimeout(300);
 
+    // ── Phase 4: Collect non-screenshot data ────────────────────────────────
     const performanceMetrics = await collectPerformanceMetrics(page, cdp);
-
     const domSnapshot = await captureDomSnapshot(page, device);
-
-    const { screenshotPath, screenshotWidth, screenshotHeight } =
-      await takeScreenshot(page, scanId, device);
-
-    let axeResults: unknown = null;
-    try {
-      const { AxeBuilder } = await import(
-        /* webpackIgnore: true */ "@axe-core/playwright"
-      );
-      const results = await new AxeBuilder({ page })
-        .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
-        .analyze();
-      axeResults = results;
-    } catch (e) {
-      console.warn(
-        "axe-core analysis failed:",
-        e instanceof Error ? e.message : e,
-      );
-    }
 
     let pageHtml: string | undefined;
     let pageCss: string | undefined;
@@ -286,7 +274,7 @@ export async function captureViewport(
       try {
         pageHtml = await page.content();
       } catch {
-        // Ignore HTML capture failure
+        // Ignore
       }
       try {
         pageCss = await page.evaluate(() => {
@@ -297,18 +285,46 @@ export async function captureViewport(
                 sheets.push(rule.cssText);
               }
             } catch {
-              // Cross-origin stylesheet, skip
+              // Cross-origin stylesheet — skipped. A future enhancement could
+              // fetch these via CDP Network events.
             }
           }
           return sheets.join("\n");
         });
       } catch {
-        // Ignore CSS capture failure
+        // Ignore
       }
+    }
+
+    // ── Phase 5: Capture screenshots (full-page + viewport thumbnail) ──────
+    const { screenshotPath, screenshotWidth, screenshotHeight } =
+      await takeFullPageScreenshot(page, scanId, device);
+
+    const viewportScreenshotPath = await takeViewportThumbnail(
+      page,
+      scanId,
+      device,
+    );
+
+    // ── Phase 6: axe-core (AFTER stabilization reverts, on live DOM) ───────
+    let axeResults: unknown = null;
+    try {
+      const { AxeBuilder } = await import(
+        /* webpackIgnore: true */ "@axe-core/playwright"
+      );
+      axeResults = await new AxeBuilder({ page })
+        .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
+        .analyze();
+    } catch (e) {
+      console.warn(
+        "axe-core analysis failed:",
+        e instanceof Error ? e.message : e,
+      );
     }
 
     return {
       screenshotPath,
+      viewportScreenshotPath,
       domSnapshot,
       performanceMetrics,
       screenshotWidth,
@@ -323,7 +339,13 @@ export async function captureViewport(
   }
 }
 
-async function takeScreenshot(
+// ─────────────────────────────────────────────────────────────────────────────
+// Screenshot helpers
+// ─────────────────────────────────────────────────────────────────────────────
+
+const WEBP_MAX_DIM = 16383;
+
+async function takeFullPageScreenshot(
   page: Page,
   scanId: string,
   device: DevicePreset,
@@ -339,395 +361,93 @@ async function takeScreenshot(
   const filename = `${baseName}.webp`;
   const filepath = path.join(dir, filename);
 
-  const viewportWidth = device.width;
-  const viewportHeight = device.height;
+  // Playwright's fullPage uses CDP Page.captureScreenshot with
+  // captureBeyondViewport under the hood. Combined with `animations:"disabled"`
+  // (fast-forwards finite animations, pauses infinite ones) and our
+  // `style` override, this produces a single accurate rendering where sticky
+  // and fixed elements appear once in their layout-natural position.
+  const pngBuffer = await page.screenshot({
+    fullPage: true,
+    type: "png",
+    animations: "disabled",
+    caret: "hide",
+    scale: "css",
+    style: STABILIZATION_CSS,
+    timeout: 60000,
+  });
 
-  const fixedElements = await tagAndIdentifyElements(page, viewportHeight);
-
-  const contentHeight = await detectContentHeight(page);
-
-  if (contentHeight <= viewportHeight * 1.1) {
-    const buffer = await page.screenshot({
-      fullPage: false,
-      type: "png",
-      clip: {
-        x: 0,
-        y: 0,
-        width: viewportWidth,
-        height: Math.min(contentHeight, viewportHeight),
-      },
-    });
-
-    const sharp = (await import(/* webpackIgnore: true */ "sharp")).default;
-    const bufferMeta = await sharp(buffer).metadata();
-    const WEBP_MAX_DIM = 16383;
-    const needsDownscale =
-      (bufferMeta.width ?? 0) > WEBP_MAX_DIM ||
-      (bufferMeta.height ?? 0) > WEBP_MAX_DIM;
-
-    let webpBuffer: Buffer;
-    if (needsDownscale) {
-      const scale = WEBP_MAX_DIM / Math.max(bufferMeta.width!, bufferMeta.height!);
-      webpBuffer = await sharp(buffer)
-        .resize(Math.round(bufferMeta.width! * scale), Math.round(bufferMeta.height! * scale))
-        .webp({ quality: 80 })
-        .toBuffer();
-    } else {
-      webpBuffer = await sharp(buffer)
-        .webp({ quality: 80 })
-        .toBuffer();
-    }
-    await fs.writeFile(filepath, webpBuffer);
-
-    const metadata = await sharp(webpBuffer).metadata();
-    return {
-      screenshotPath: `/api/screenshots/${scanId}/${filename}`,
-      screenshotWidth: metadata.width ?? viewportWidth,
-      screenshotHeight: metadata.height ?? contentHeight,
-    };
-  }
-
-  const tiles: Buffer[] = [];
-  const totalTiles = Math.ceil(contentHeight / viewportHeight);
-  const maxTiles = 15;
-  const numTiles = Math.min(totalTiles, maxTiles);
-
-  const headerElements = fixedElements.filter((e) => e.type === "header");
-  const footerElements = fixedElements.filter((e) => e.type === "footer");
-  const otherElements = fixedElements.filter((e) => e.type === "other");
-
-  for (let i = 0; i < numTiles; i++) {
-    const scrollY = i * viewportHeight;
-    const isFirst = i === 0;
-    const isLast = i === numTiles - 1;
-
-    await page.evaluate(
-      (y: number) => {
-        window.scrollTo({ top: y, behavior: "instant" });
-      },
-      scrollY,
-    );
-    await page.waitForTimeout(400);
-
-    const actualScroll = await page.evaluate(() => window.scrollY);
-    if (Math.abs(actualScroll - scrollY) > 2) {
-      await page.evaluate(
-        (y: number) => window.scrollTo(0, y),
-        scrollY,
-      );
-      await page.waitForTimeout(250);
-    }
-
-    await setVisibilityByCaptureId(page, headerElements, isFirst);
-    await setVisibilityByCaptureId(page, footerElements, isLast);
-    await setVisibilityByCaptureId(page, otherElements, false);
-
-    await page.waitForTimeout(150);
-
-    const remainingHeight = contentHeight - scrollY;
-    const tileHeight = isLast
-      ? Math.min(remainingHeight, viewportHeight)
-      : viewportHeight;
-
-    const tile = await page.screenshot({
-      fullPage: false,
-      type: "png",
-      clip: { x: 0, y: 0, width: viewportWidth, height: tileHeight },
-    });
-    tiles.push(tile);
-  }
-
-  // Restore all elements
-  await setVisibilityByCaptureId(page, fixedElements, true);
-  await cleanupCaptureIds(page);
-  await page.evaluate(() => window.scrollTo(0, 0));
-
-  // Stitch tiles with Sharp
   const sharp = (await import(/* webpackIgnore: true */ "sharp")).default;
+  const meta = await sharp(pngBuffer).metadata();
+  const origWidth = meta.width ?? device.width;
+  const origHeight = meta.height ?? device.height;
 
-  const firstTileMeta = await sharp(tiles[0]).metadata();
-  const tilePixelWidth = firstTileMeta.width!;
-
-  const tileMetas = [];
-  let totalPixelHeight = 0;
-  for (const tile of tiles) {
-    const meta = await sharp(tile).metadata();
-    tileMetas.push(meta);
-    totalPixelHeight += meta.height!;
-  }
-
-  let currentY = 0;
-  const composites: Array<{ input: Buffer; top: number; left: number }> = [];
-  for (let i = 0; i < tiles.length; i++) {
-    composites.push({ input: tiles[i], top: currentY, left: 0 });
-    currentY += tileMetas[i].height!;
-  }
-
-  const stitched = await sharp({
-    create: {
-      width: tilePixelWidth,
-      height: totalPixelHeight,
-      channels: 4,
-      background: { r: 255, g: 255, b: 255, alpha: 1 },
-    },
-  })
-    .composite(composites)
-    .png()
-    .toBuffer();
-
-  const trimmedBuffer = await trimBottomWhitespace(stitched);
-
-  const WEBP_MAX_DIM = 16383;
-  const trimmedMeta = await sharp(trimmedBuffer).metadata();
   const needsDownscale =
-    (trimmedMeta.width ?? 0) > WEBP_MAX_DIM ||
-    (trimmedMeta.height ?? 0) > WEBP_MAX_DIM;
+    origWidth > WEBP_MAX_DIM || origHeight > WEBP_MAX_DIM;
 
-  let finalBuffer: Buffer;
+  let webpBuffer: Buffer;
   if (needsDownscale) {
-    const scale = WEBP_MAX_DIM / Math.max(trimmedMeta.width!, trimmedMeta.height!);
-    const newWidth = Math.round(trimmedMeta.width! * scale);
-    const newHeight = Math.round(trimmedMeta.height! * scale);
-    finalBuffer = await sharp(trimmedBuffer)
-      .resize(newWidth, newHeight)
-      .webp({ quality: 80 })
+    const scale = WEBP_MAX_DIM / Math.max(origWidth, origHeight);
+    webpBuffer = await sharp(pngBuffer)
+      .resize(Math.round(origWidth * scale), Math.round(origHeight * scale))
+      .webp({ quality: 82 })
       .toBuffer();
   } else {
-    finalBuffer = await sharp(trimmedBuffer)
-      .webp({ quality: 80 })
-      .toBuffer();
+    webpBuffer = await sharp(pngBuffer).webp({ quality: 82 }).toBuffer();
   }
-  await fs.writeFile(filepath, finalBuffer);
 
-  const finalMetadata = await sharp(finalBuffer).metadata();
+  await fs.writeFile(filepath, webpBuffer);
+
+  const finalMeta = await sharp(webpBuffer).metadata();
   return {
     screenshotPath: `/api/screenshots/${scanId}/${filename}`,
-    screenshotWidth: finalMetadata.width ?? tilePixelWidth,
-    screenshotHeight: finalMetadata.height ?? totalPixelHeight,
+    screenshotWidth: finalMeta.width ?? origWidth,
+    screenshotHeight: finalMeta.height ?? origHeight,
   };
 }
 
-async function tagAndIdentifyElements(
+async function takeViewportThumbnail(
   page: Page,
-  viewportHeight: number,
-): Promise<FixedOrStickyElement[]> {
-  return page.evaluate((vpHeight: number) => {
-    const elements: Array<{
-      captureId: string;
-      position: "fixed" | "sticky";
-      type: "header" | "footer" | "other";
-      height: number;
-      topOffset: number;
-    }> = [];
+  scanId: string,
+  device: DevicePreset,
+): Promise<string | undefined> {
+  // AI vision models downsample large images. Claude downscales to 1568 px
+  // long edge (2576 px on Opus 4.7); a 1920x8000 full-page capture ends up at
+  // ~376x1568 and loses UI detail. Emit a viewport-sized JPEG captured at
+  // scroll 0 so the AI can see small text, icons, and focus states.
+  try {
+    const dir = path.join(SCREENSHOTS_DIR, scanId);
+    await fs.mkdir(dir, { recursive: true });
 
-    const seen = new Set<Element>();
-    const allEls = document.querySelectorAll("*");
+    const baseName = device.name.toLowerCase().replace(/\s+/g, "-");
+    const filename = `${baseName}-viewport.jpg`;
+    const filepath = path.join(dir, filename);
 
-    for (const el of Array.from(allEls)) {
-      if (seen.has(el)) continue;
-      const style = window.getComputedStyle(el);
-      const pos = style.position;
-      if (pos !== "fixed" && pos !== "sticky") continue;
+    const jpegBuffer = await page.screenshot({
+      fullPage: false,
+      type: "jpeg",
+      quality: 90,
+      animations: "disabled",
+      caret: "hide",
+      scale: "css",
+      style: STABILIZATION_CSS,
+      clip: { x: 0, y: 0, width: device.width, height: device.height },
+      timeout: 30000,
+    });
 
-      seen.add(el);
-
-      const rect = el.getBoundingClientRect();
-      const elHeight = rect.height;
-
-      if (elHeight === 0 && rect.width === 0) continue;
-
-      let type: "header" | "footer" | "other";
-      if (rect.top < vpHeight * 0.35 && rect.top >= 0) {
-        type = "header";
-      } else if (rect.bottom > vpHeight * 0.65) {
-        type = "footer";
-      } else {
-        type = "other";
-      }
-
-      const captureId = `__ui_cap_${Math.random().toString(36).slice(2, 10)}`;
-      (el as HTMLElement).setAttribute("data-capture-id", captureId);
-
-      let topOffset = 0;
-      const cssTop = style.top;
-      if (cssTop && cssTop !== "auto") {
-        topOffset = parseFloat(cssTop) || 0;
-      }
-
-      elements.push({
-        captureId,
-        position: pos as "fixed" | "sticky",
-        type,
-        height: elHeight,
-        topOffset,
-      });
-    }
-
-    return elements;
-  }, viewportHeight);
-}
-
-async function setVisibilityByCaptureId(
-  page: Page,
-  elements: FixedOrStickyElement[],
-  visible: boolean,
-): Promise<void> {
-  if (elements.length === 0) return;
-
-  const items = elements.map((e) => ({
-    id: e.captureId,
-    pos: e.position,
-  }));
-  await page.evaluate(
-    ({ items, vis }: { items: Array<{ id: string; pos: "fixed" | "sticky" }>; vis: boolean }) => {
-      for (const { id, pos } of items) {
-        const el = document.querySelector(`[data-capture-id="${id}"]`) as HTMLElement | null;
-        if (!el) continue;
-        if (vis) {
-          el.style.removeProperty("display");
-          el.style.removeProperty("visibility");
-          el.style.removeProperty("opacity");
-          el.style.removeProperty("pointer-events");
-        } else if (pos === "fixed") {
-          el.style.setProperty("display", "none", "important");
-        } else {
-          el.style.setProperty("visibility", "hidden", "important");
-          el.style.setProperty("pointer-events", "none", "important");
-        }
-      }
-    },
-    { items, vis: visible },
-  );
-}
-
-async function cleanupCaptureIds(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const els = document.querySelectorAll("[data-capture-id]");
-    for (const el of Array.from(els)) {
-      (el as HTMLElement).removeAttribute("data-capture-id");
-      (el as HTMLElement).style.removeProperty("display");
-      (el as HTMLElement).style.removeProperty("visibility");
-      (el as HTMLElement).style.removeProperty("opacity");
-      (el as HTMLElement).style.removeProperty("pointer-events");
-    }
-  });
-}
-
-async function detectContentHeight(page: Page): Promise<number> {
-  return page.evaluate(() => {
-    const html = document.documentElement;
-    const body = document.body;
-
-    // Temporarily reset html/body explicit heights so scrollHeight reflects
-    // actual content, not an artificially capped page.
-    const saved: Array<{ el: HTMLElement; prop: string; val: string }> = [];
-    const propsToReset = ["minHeight", "height"] as const;
-    const elementsToReset = [html, body] as HTMLElement[];
-
-    for (const el of elementsToReset) {
-      for (const prop of propsToReset) {
-        const val = el.style[prop];
-        if (val && val !== "auto") {
-          saved.push({ el, prop, val });
-          (el.style as unknown as Record<string, string>)[prop] = "auto";
-        }
-      }
-    }
-
-    void html.offsetHeight;
-
-    const blockTags = new Set([
-      "DIV", "SECTION", "ARTICLE", "MAIN", "HEADER", "FOOTER", "NAV",
-      "ASIDE", "P", "H1", "H2", "H3", "H4", "H5", "H6", "UL", "OL",
-      "TABLE", "FORM", "BLOCKQUOTE", "FIGURE", "FIGCAPTION", "DETAILS",
-      "IMG", "VIDEO", "SVG", "CANVAS", "IFRAME",
-    ]);
-
-    let maxBottom = 0;
-    const allEls = body.querySelectorAll("*");
-
-    for (const el of Array.from(allEls)) {
-      const style = window.getComputedStyle(el);
-      if (
-        style.display === "none" ||
-        style.visibility === "hidden" ||
-        style.opacity === "0"
-      )
-        continue;
-      // Exclude only truly viewport-pinned elements, not sticky ones.
-      // Sticky elements (including reveal-footer patterns with negative
-      // z-index) participate in layout and must count toward content height.
-      if (style.position === "fixed") continue;
-      if (!blockTags.has(el.tagName)) continue;
-
-      const rect = el.getBoundingClientRect();
-      if (rect.width === 0 && rect.height === 0) continue;
-
-      const bottom = rect.bottom + window.scrollY;
-      if (bottom > maxBottom && bottom < 200000) {
-        maxBottom = bottom;
-      }
-    }
-
-    const fallbackHeight = Math.max(
-      body.scrollHeight,
-      body.offsetHeight,
-      html.clientHeight,
-      html.scrollHeight,
-      html.offsetHeight,
+    await fs.writeFile(filepath, jpegBuffer);
+    return `/api/screenshots/${scanId}/${filename}`;
+  } catch (e) {
+    console.warn(
+      "Viewport thumbnail capture failed:",
+      e instanceof Error ? e.message : e,
     );
-
-    const height = maxBottom > 0 ? maxBottom : fallbackHeight;
-
-    for (const { el, prop, val } of saved) {
-      (el.style as unknown as Record<string, string>)[prop] = val;
-    }
-
-    return Math.ceil(height);
-  });
-}
-
-async function trimBottomWhitespace(
-  buffer: Buffer,
-): Promise<Buffer> {
-  const sharp = (await import(/* webpackIgnore: true */ "sharp")).default;
-  const { data, info } = await sharp(buffer)
-    .raw()
-    .toBuffer({ resolveWithObject: true });
-
-  const rowSize = info.width * info.channels;
-  let trimRows = 0;
-  const sampleStep = Math.max(1, Math.floor(info.width / 200));
-
-  for (let y = info.height - 1; y >= 0; y--) {
-    const rowStart = y * rowSize;
-    let isBlank = true;
-
-    for (let x = 0; x < info.width; x += sampleStep) {
-      const px = rowStart + x * info.channels;
-      if (info.channels >= 3) {
-        const r = data[px];
-        const g = data[px + 1];
-        const b = data[px + 2];
-        const a = info.channels >= 4 ? data[px + 3] : 255;
-        if (a > 10 && (r < 252 || g < 252 || b < 252)) {
-          isBlank = false;
-          break;
-        }
-      }
-    }
-
-    if (!isBlank) break;
-    trimRows++;
+    return undefined;
   }
-
-  if (trimRows <= 0) return buffer;
-
-  const trimmedHeight = Math.max(1, info.height - trimRows);
-  return sharp(buffer)
-    .extract({ left: 0, top: 0, width: info.width, height: trimmedHeight })
-    .toBuffer();
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Metrics and DOM snapshot (unchanged)
+// ─────────────────────────────────────────────────────────────────────────────
 
 async function collectPerformanceMetrics(
   page: Page,
@@ -744,17 +464,14 @@ async function collectPerformanceMetrics(
       )[0] as PerformanceNavigationTiming;
       if (nav) {
         result.ttfb = nav.responseStart - nav.requestStart;
-        result.domContentLoaded =
-          nav.domContentLoadedEventEnd - nav.startTime;
+        result.domContentLoaded = nav.domContentLoadedEventEnd - nav.startTime;
         result.load = nav.loadEventEnd - nav.startTime;
       }
 
       const fcpEntry = performance.getEntriesByName(
         "first-contentful-paint",
       )[0];
-      if (fcpEntry) {
-        result.fcp = fcpEntry.startTime;
-      }
+      if (fcpEntry) result.fcp = fcpEntry.startTime;
 
       const lcpEntries = performance.getEntriesByType(
         "largest-contentful-paint",
@@ -802,6 +519,7 @@ async function captureDomSnapshot(
   page: Page,
   device: DevicePreset,
 ): Promise<DomSnapshot> {
+  void device;
   const snapshot = await page.evaluate(() => {
     const interactiveTags = new Set([
       "A",
@@ -852,7 +570,6 @@ async function captureDomSnapshot(
     const selectors =
       "a, button, input, select, textarea, h1, h2, h3, h4, h5, h6, img, form, nav, [role], p, li";
     const nodeList = document.querySelectorAll(selectors);
-
     const els = Array.from(nodeList).slice(0, 500);
 
     for (const el of els) {
@@ -883,7 +600,7 @@ async function captureDomSnapshot(
         selector: getSelector(el),
         rect: {
           x: rect.x,
-          y: rect.y,
+          y: rect.y + window.scrollY,
           width: rect.width,
           height: rect.height,
         },

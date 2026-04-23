@@ -50,17 +50,24 @@ export async function runAiAnalysis(
   // to avoid exceeding AI token limits
   const selectedResults = selectRepresentativeViewports(results);
 
+  // Prefer the viewport-sized thumbnail over the full-page screenshot: AI
+  // providers downscale images (Claude: 1568px long edge; GPT-5: 2048px for
+  // "high" detail) and a 1920x8000 full-page capture loses UI fidelity.
+  // The viewport thumbnail is natively within the model's full-resolution band.
   const screenshots = selectedResults.map((r) => ({
     viewportName: r.viewportName,
-    imagePath: r.screenshotPath,
+    imagePath: r.viewportScreenshotPath ?? r.screenshotPath,
   }));
 
   const dimensions: ViewportDimensions[] = selectedResults.map((r) => {
     const snapshot = r.domSnapshot as DomSnapshot | null;
+    const usesViewportThumbnail = !!r.viewportScreenshotPath;
     return {
       name: r.viewportName,
-      width: r.screenshotWidth ?? r.width,
-      height: r.screenshotHeight ?? (snapshot?.documentHeight ?? r.height * 4),
+      width: usesViewportThumbnail ? r.width : r.screenshotWidth ?? r.width,
+      height: usesViewportThumbnail
+        ? r.height
+        : r.screenshotHeight ?? snapshot?.documentHeight ?? r.height * 4,
     };
   });
 

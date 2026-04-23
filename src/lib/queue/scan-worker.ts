@@ -85,6 +85,7 @@ async function processScanJob(data: ScanJobData): Promise<void> {
         width: device.width,
         height: device.height,
         screenshotPath: result.screenshotPath,
+        viewportScreenshotPath: result.viewportScreenshotPath ?? null,
         domSnapshot: result.domSnapshot,
         performanceMetrics: result.performanceMetrics,
         deviceName: device.name,
