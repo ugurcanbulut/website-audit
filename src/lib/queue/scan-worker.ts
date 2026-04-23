@@ -2,11 +2,10 @@ import { eq } from "drizzle-orm";
 import { createRedisConnection } from "./connection";
 import type { ScanJobData } from "./scan-queue";
 import { db } from "@/lib/db";
-import { scans, viewportResults } from "@/lib/db/schema";
+import { scans, viewportResults, auditIssues, categoryScores } from "@/lib/db/schema";
 import { captureViewport } from "@/lib/scanner/capture";
 import { launchBrowser, closeBrowser } from "@/lib/scanner/browser";
 import { publishScanEvent } from "@/lib/queue/scan-events";
-import { getDevicesByNames } from "@/lib/scanner/devices";
 import type { DevicePreset, BrowserEngine } from "@/lib/types";
 
 async function processScanJob(data: ScanJobData): Promise<void> {
@@ -28,10 +27,33 @@ async function processScanJob(data: ScanJobData): Promise<void> {
   }
 
   const session = await launchBrowser(browserEngine);
+  let browserClosed = false;
+  const closeSessionOnce = async () => {
+    if (browserClosed) return;
+    browserClosed = true;
+    await closeBrowser(session);
+  };
 
   try {
-    // Update status to scanning
-    await db.update(scans).set({ status: "scanning" }).where(eq(scans.id, scanId));
+    // Idempotency: on retry, clear any prior per-scan rows so this run starts
+    // clean. Cascading deletes on viewport_results -> audit_issues are implicit
+    // via FK, but we also drop audit_issues bound only by scan_id (e.g. AI
+    // issues with null viewport_result_id) and category_scores explicitly.
+    await db.delete(auditIssues).where(eq(auditIssues.scanId, scanId));
+    await db.delete(categoryScores).where(eq(categoryScores.scanId, scanId));
+    await db.delete(viewportResults).where(eq(viewportResults.scanId, scanId));
+
+    // Reset scan row for a clean retry.
+    await db
+      .update(scans)
+      .set({
+        status: "scanning",
+        overallScore: null,
+        overallGrade: null,
+        error: null,
+        completedAt: null,
+      })
+      .where(eq(scans.id, scanId));
     publishScanEvent(scanId, {
       type: "status",
       data: { scanId, message: "Starting scan...", progress: 0 },
@@ -93,7 +115,7 @@ async function processScanJob(data: ScanJobData): Promise<void> {
     });
 
     const { runAuditEngine } = await import("@/lib/audit/engine");
-    await runAuditEngine(scanId, url, session);
+    const auditResult = await runAuditEngine(scanId, url, session);
 
     publishScanEvent(scanId, {
       type: "audit_progress",
@@ -101,7 +123,7 @@ async function processScanJob(data: ScanJobData): Promise<void> {
     });
 
     // NOW close browser (Lighthouse is done)
-    await closeBrowser(session);
+    await closeSessionOnce();
 
     // Run AI analysis if enabled (no browser needed) -- non-fatal
     if (aiEnabled && aiProvider) {
@@ -135,7 +157,7 @@ async function processScanJob(data: ScanJobData): Promise<void> {
     });
 
     const { calculateScores } = await import("@/lib/audit/scoring");
-    await calculateScores(scanId);
+    await calculateScores(scanId, auditResult.lighthouseScores);
 
     // Mark as completed
     await db.update(scans).set({ status: "completed", completedAt: new Date() }).where(eq(scans.id, scanId));
@@ -152,7 +174,7 @@ async function processScanJob(data: ScanJobData): Promise<void> {
     });
     throw error;
   } finally {
-    await closeBrowser(session);
+    await closeSessionOnce();
   }
 }
 

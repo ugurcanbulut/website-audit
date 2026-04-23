@@ -32,23 +32,20 @@ interface AuditIssueInsert {
   details?: Record<string, unknown> | null;
 }
 
-// Store lighthouse scores for scoring phase
-let lastLighthouseScores: Record<string, number> | null = null;
-
-export function getLastLighthouseScores(): Record<string, number> | null {
-  return lastLighthouseScores;
+export interface AuditEngineResult {
+  lighthouseScores: Record<string, number> | null;
 }
 
 export async function runAuditEngine(
   scanId: string,
   url: string,
   session: BrowserSession
-): Promise<void> {
+): Promise<AuditEngineResult> {
   const results = await db.query.viewportResults.findMany({
     where: eq(viewportResults.scanId, scanId),
   });
 
-  if (results.length === 0) return;
+  if (results.length === 0) return { lighthouseScores: null };
 
   const allIssues: AuditIssueInsert[] = [];
 
@@ -175,8 +172,8 @@ export async function runAuditEngine(
 
   // ── Lighthouse (Chromium only, desktop + mobile) ────────────────
 
-  lastLighthouseScores = null;
-  let lighthouseData: Record<string, unknown> = {};
+  let lighthouseScores: Record<string, number> | null = null;
+  const lighthouseData: Record<string, unknown> = {};
 
   if (session.debuggingPort) {
     // Desktop run
@@ -189,17 +186,17 @@ export async function runAuditEngine(
         formFactor: "desktop",
       });
 
-      lastLighthouseScores = {};
-      if (lhDesktop.categoryScores.performance !== undefined) lastLighthouseScores.performance = lhDesktop.categoryScores.performance;
-      if (lhDesktop.categoryScores.bestPractices !== undefined) lastLighthouseScores["best-practices"] = lhDesktop.categoryScores.bestPractices;
-      if (lhDesktop.categoryScores.seo !== undefined) lastLighthouseScores.seo = lhDesktop.categoryScores.seo;
+      lighthouseScores = {};
+      if (lhDesktop.categoryScores.performance !== undefined) lighthouseScores.performance = lhDesktop.categoryScores.performance;
+      if (lhDesktop.categoryScores.bestPractices !== undefined) lighthouseScores["best-practices"] = lhDesktop.categoryScores.bestPractices;
+      if (lhDesktop.categoryScores.seo !== undefined) lighthouseScores.seo = lhDesktop.categoryScores.seo;
 
       for (const issue of lhDesktop.issues) {
         allIssues.push({ ...issue, scanId, viewportResultId: firstResult.id });
       }
 
       lighthouseData.desktop = lhDesktop.lhr;
-      console.log(`Lighthouse Desktop: perf=${lastLighthouseScores.performance}, seo=${lastLighthouseScores.seo}`);
+      console.log(`Lighthouse Desktop: perf=${lighthouseScores.performance}, seo=${lighthouseScores.seo}`);
     } catch (e) {
       console.warn("Lighthouse Desktop failed:", e instanceof Error ? e.message : e);
     }
@@ -257,4 +254,6 @@ export async function runAuditEngine(
   console.log(
     `Audit engine: found ${allIssues.length} issues across ${results.length} viewports for scan ${scanId}`
   );
+
+  return { lighthouseScores };
 }

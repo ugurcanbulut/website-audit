@@ -1,5 +1,4 @@
 import { getRedisConnection } from "./connection";
-import type { CrawlConfig } from "@/lib/crawler/types";
 
 export interface CrawlJobData {
   crawlId: string;

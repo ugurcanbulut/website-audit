@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import type { AiAnalysisResult } from "./provider";
 import { UI_AUDIT_SYSTEM_PROMPT, buildAnalysisPrompt } from "./prompts";
 import type { ViewportDimensions, AuditContext } from "./prompts";
+import { readScreenshotAsBase64 } from "./image-utils";
 
 export async function analyzeWithClaude(
   screenshots: { viewportName: string; imagePath: string }[],
@@ -12,23 +13,19 @@ export async function analyzeWithClaude(
   if (!apiKey) throw new Error("ANTHROPIC_API_KEY is not configured");
 
   const client = new Anthropic({ apiKey });
-  const fs = await import("fs/promises");
-  const path = await import("path");
 
   const imageContent: Anthropic.Messages.ContentBlockParam[] = [];
   const viewportNames: string[] = [];
 
   for (const screenshot of screenshots) {
-    const screenshotDir = process.env.SCREENSHOTS_DIR || "./public/screenshots";
-    const relativePath = screenshot.imagePath.replace(/^\/api\/screenshots\//, "");
-    const fullPath = path.join(process.cwd(), screenshotDir, relativePath);
-    const imageBuffer = await fs.readFile(fullPath);
-    const base64 = imageBuffer.toString("base64");
+    const { base64, mediaType } = await readScreenshotAsBase64(
+      screenshot.imagePath,
+    );
 
     imageContent.push({ type: "text", text: `Screenshot: ${screenshot.viewportName}` });
     imageContent.push({
       type: "image",
-      source: { type: "base64", media_type: "image/png", data: base64 },
+      source: { type: "base64", media_type: mediaType, data: base64 },
     });
     viewportNames.push(screenshot.viewportName);
   }

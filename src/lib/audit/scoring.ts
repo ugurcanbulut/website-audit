@@ -2,7 +2,6 @@ import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { scans, auditIssues, categoryScores } from "@/lib/db/schema";
 import type { AuditCategory, Grade } from "@/lib/types";
-import { getLastLighthouseScores } from "./engine";
 
 const SEVERITY_WEIGHTS = {
   critical: 15,
@@ -54,12 +53,13 @@ function getGrade(score: number): Grade {
   return "F";
 }
 
-export async function calculateScores(scanId: string): Promise<void> {
+export async function calculateScores(
+  scanId: string,
+  lighthouseScores: Record<string, number> | null = null,
+): Promise<void> {
   const issues = await db.query.auditIssues.findMany({
     where: eq(auditIssues.scanId, scanId),
   });
-
-  const lighthouseScores = getLastLighthouseScores();
 
   let weightedTotal = 0;
   let weightSum = 0;

@@ -618,20 +618,8 @@ async function detectContentHeight(page: Page): Promise<number> {
     const html = document.documentElement;
     const body = document.body;
 
-    const negativeZContainers = new Set<Element>();
-    const allForZCheck = body.querySelectorAll("*");
-    for (const el of Array.from(allForZCheck)) {
-      const style = window.getComputedStyle(el);
-      const z = parseInt(style.zIndex, 10);
-      if (!isNaN(z) && z < 0) {
-        negativeZContainers.add(el);
-        const descendants = el.querySelectorAll("*");
-        for (const d of Array.from(descendants)) {
-          negativeZContainers.add(d);
-        }
-      }
-    }
-
+    // Temporarily reset html/body explicit heights so scrollHeight reflects
+    // actual content, not an artificially capped page.
     const saved: Array<{ el: HTMLElement; prop: string; val: string }> = [];
     const propsToReset = ["minHeight", "height"] as const;
     const elementsToReset = [html, body] as HTMLElement[];
@@ -659,8 +647,6 @@ async function detectContentHeight(page: Page): Promise<number> {
     const allEls = body.querySelectorAll("*");
 
     for (const el of Array.from(allEls)) {
-      if (negativeZContainers.has(el)) continue;
-
       const style = window.getComputedStyle(el);
       if (
         style.display === "none" ||
@@ -668,6 +654,9 @@ async function detectContentHeight(page: Page): Promise<number> {
         style.opacity === "0"
       )
         continue;
+      // Exclude only truly viewport-pinned elements, not sticky ones.
+      // Sticky elements (including reveal-footer patterns with negative
+      // z-index) participate in layout and must count toward content height.
       if (style.position === "fixed") continue;
       if (!blockTags.has(el.tagName)) continue;
 

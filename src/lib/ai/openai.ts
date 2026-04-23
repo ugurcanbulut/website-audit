@@ -2,6 +2,7 @@ import OpenAI from "openai";
 import type { AiAnalysisResult } from "./provider";
 import { UI_AUDIT_SYSTEM_PROMPT, buildAnalysisPrompt } from "./prompts";
 import type { ViewportDimensions, AuditContext } from "./prompts";
+import { readScreenshotAsBase64 } from "./image-utils";
 
 export async function analyzeWithOpenAI(
   screenshots: { viewportName: string; imagePath: string }[],
@@ -12,23 +13,19 @@ export async function analyzeWithOpenAI(
   if (!apiKey) throw new Error("OPENAI_API_KEY is not configured");
 
   const client = new OpenAI({ apiKey });
-  const fs = await import("fs/promises");
-  const path = await import("path");
 
   const content: OpenAI.Chat.Completions.ChatCompletionContentPart[] = [];
   const viewportNames: string[] = [];
 
   for (const screenshot of screenshots) {
-    const screenshotDir = process.env.SCREENSHOTS_DIR || "./public/screenshots";
-    const relativePath = screenshot.imagePath.replace(/^\/api\/screenshots\//, "");
-    const fullPath = path.join(process.cwd(), screenshotDir, relativePath);
-    const imageBuffer = await fs.readFile(fullPath);
-    const base64 = imageBuffer.toString("base64");
+    const { base64, mediaType } = await readScreenshotAsBase64(
+      screenshot.imagePath,
+    );
 
     content.push({ type: "text", text: `Screenshot: ${screenshot.viewportName}` });
     content.push({
       type: "image_url",
-      image_url: { url: `data:image/png;base64,${base64}`, detail: "high" },
+      image_url: { url: `data:${mediaType};base64,${base64}`, detail: "high" },
     });
     viewportNames.push(screenshot.viewportName);
   }

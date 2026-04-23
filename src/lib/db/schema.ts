@@ -6,8 +6,10 @@ import {
   boolean,
   timestamp,
   jsonb,
+  index,
+  uniqueIndex,
 } from 'drizzle-orm/pg-core';
-import { relations } from 'drizzle-orm';
+import { relations, sql } from 'drizzle-orm';
 
 // ── Scan Batches ─────────────────────────────────────────────────────────────
 
@@ -26,7 +28,9 @@ export const scanBatches = pgTable('scan_batches', {
   aiProvider: text('ai_provider'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   completedAt: timestamp('completed_at'),
-});
+}, (t) => ({
+  createdAtIdx: index('scan_batches_created_at_idx').on(sql`${t.createdAt} DESC`),
+}));
 
 export const scanBatchesRelations = relations(scanBatches, ({ many }) => ({
   scans: many(scans),
@@ -48,7 +52,11 @@ export const scans = pgTable('scans', {
   error: text('error'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   completedAt: timestamp('completed_at'),
-});
+}, (t) => ({
+  batchIdIdx: index('scans_batch_id_idx').on(t.batchId),
+  createdAtIdx: index('scans_created_at_idx').on(sql`${t.createdAt} DESC`),
+  statusIdx: index('scans_status_idx').on(t.status),
+}));
 
 export const scansRelations = relations(scans, ({ one, many }) => ({
   batch: one(scanBatches, {
@@ -82,7 +90,12 @@ export const viewportResults = pgTable('viewport_results', {
   screenshotWidth: integer('screenshot_width'),
   screenshotHeight: integer('screenshot_height'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
-});
+}, (t) => ({
+  scanIdIdx: index('viewport_results_scan_id_idx').on(t.scanId),
+  // Protects against BullMQ retry duplication of viewport rows for the same scan.
+  scanIdViewportNameUniq: uniqueIndex('viewport_results_scan_id_viewport_name_uniq')
+    .on(t.scanId, t.viewportName),
+}));
 
 export const viewportResultsRelations = relations(viewportResults, ({ one, many }) => ({
   scan: one(scans, {
@@ -112,7 +125,11 @@ export const auditIssues = pgTable('audit_issues', {
   elementHtml: text('element_html'),
   recommendation: text('recommendation'),
   details: jsonb('details'),
-});
+}, (t) => ({
+  scanIdIdx: index('audit_issues_scan_id_idx').on(t.scanId),
+  viewportResultIdIdx: index('audit_issues_viewport_result_id_idx').on(t.viewportResultId),
+  severityIdx: index('audit_issues_severity_idx').on(t.severity),
+}));
 
 export const auditIssuesRelations = relations(auditIssues, ({ one }) => ({
   scan: one(scans, {
@@ -136,7 +153,9 @@ export const categoryScores = pgTable('category_scores', {
   score: integer('score').notNull(),
   issueCount: jsonb('issue_count').notNull(),
   lighthouseScore: integer('lighthouse_score'),
-});
+}, (t) => ({
+  scanIdIdx: index('category_scores_scan_id_idx').on(t.scanId),
+}));
 
 export const categoryScoresRelations = relations(categoryScores, ({ one }) => ({
   scan: one(scans, {
@@ -156,7 +175,9 @@ export const crawls = pgTable('crawls', {
   error: text('error'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   completedAt: timestamp('completed_at'),
-});
+}, (t) => ({
+  createdAtIdx: index('crawls_created_at_idx').on(sql`${t.createdAt} DESC`),
+}));
 
 export const crawlsRelations = relations(crawls, ({ many }) => ({
   pages: many(crawlPages),
@@ -191,7 +212,9 @@ export const crawlPages = pgTable('crawl_pages', {
   redirectChain: jsonb('redirect_chain'),    // Array of {url, statusCode}
   inlinksCount: integer('inlinks_count'),
   crawledAt: timestamp('crawled_at').defaultNow(),
-});
+}, (t) => ({
+  crawlIdIdx: index('crawl_pages_crawl_id_idx').on(t.crawlId),
+}));
 
 export const crawlPagesRelations = relations(crawlPages, ({ one }) => ({
   crawl: one(crawls, {
