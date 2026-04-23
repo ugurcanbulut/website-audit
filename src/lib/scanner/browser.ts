@@ -32,7 +32,9 @@ export async function launchBrowser(engine: BrowserEngine = "chromium"): Promise
         "--no-sandbox",
         "--disable-setuid-sandbox",
         "--disable-dev-shm-usage",
-        "--disable-gpu",
+        "--autoplay-policy=no-user-gesture-required",
+        "--use-gl=angle",
+        "--use-angle=swiftshader",
         `--remote-debugging-port=${DEBUGGING_PORT}`,
       ]
     : [];

@@ -54,6 +54,13 @@ const navItems = [
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const pathname = usePathname()
+  const [openGroups, setOpenGroups] = React.useState<Record<string, boolean>>(() => {
+    const initial: Record<string, boolean> = {}
+    for (const item of navItems) {
+      initial[item.title] = item.items.some((sub) => pathname.startsWith(sub.url))
+    }
+    return initial
+  })
 
   return (
     <Sidebar collapsible="icon" {...props}>
@@ -95,11 +102,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <SidebarGroupLabel>Platform</SidebarGroupLabel>
           <SidebarMenu>
             {navItems.map((item) => {
-              const isGroupActive = item.items.some((sub) => pathname.startsWith(sub.url));
               return (
                 <Collapsible
                   key={item.title}
-                  defaultOpen={isGroupActive}
+                  open={openGroups[item.title]}
+                  onOpenChange={(value) => setOpenGroups((prev) => ({ ...prev, [item.title]: value }))}
                   className="group/collapsible"
                   render={<SidebarMenuItem />}
                 >
