@@ -1,42 +1,49 @@
 import type { Grade } from "@/lib/types";
 
-// ── Severity colors (used in issue cards, annotations, badges) ──────
+// ── Severity colors ─────────────────────────────────────────────────
+// Soft palette — backgrounds use 50-shade, accent comes from the icon /
+// dot / SVG stroke. Aligns with Lighthouse and Siteimprove convention;
+// reduces visual noise when many issues are rendered at once.
 export const SEVERITY_COLORS = {
   critical: {
-    bg: "bg-red-100 dark:bg-red-900/30",
-    text: "text-red-800 dark:text-red-300",
-    border: "border-red-200 dark:border-red-800",
-    badge: "bg-red-100 text-red-800 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800",
-    icon: "text-red-700 dark:text-red-400",
+    bg: "bg-red-50 dark:bg-red-950/40",
+    text: "text-red-900 dark:text-red-200",
+    border: "border-red-200 dark:border-red-900/60",
+    badge:
+      "bg-red-50 text-red-800 border-red-200 dark:bg-red-950/50 dark:text-red-200 dark:border-red-900/60",
+    icon: "text-red-600 dark:text-red-400",
     dot: "bg-red-500",
-    svg: { stroke: "#ef4444", fill: "rgba(239,68,68,0.12)" },
+    svg: { stroke: "#dc2626", fill: "rgba(220,38,38,0.10)" },
   },
   warning: {
-    bg: "bg-yellow-100 dark:bg-yellow-900/30",
-    text: "text-yellow-800 dark:text-yellow-300",
-    border: "border-yellow-200 dark:border-yellow-800",
-    badge: "bg-yellow-100 text-yellow-800 border-yellow-200 dark:bg-yellow-900/30 dark:text-yellow-300 dark:border-yellow-800",
-    icon: "text-yellow-700 dark:text-yellow-400",
+    bg: "bg-amber-50 dark:bg-amber-950/40",
+    text: "text-amber-900 dark:text-amber-200",
+    border: "border-amber-200 dark:border-amber-900/60",
+    badge:
+      "bg-amber-50 text-amber-800 border-amber-200 dark:bg-amber-950/50 dark:text-amber-200 dark:border-amber-900/60",
+    icon: "text-amber-600 dark:text-amber-400",
     dot: "bg-amber-500",
-    svg: { stroke: "#f59e0b", fill: "rgba(245,158,11,0.10)" },
+    svg: { stroke: "#d97706", fill: "rgba(217,119,6,0.10)" },
   },
   info: {
-    bg: "bg-blue-100 dark:bg-blue-900/30",
-    text: "text-blue-800 dark:text-blue-300",
-    border: "border-blue-200 dark:border-blue-800",
-    badge: "bg-blue-100 text-blue-800 border-blue-200 dark:bg-blue-900/30 dark:text-blue-300 dark:border-blue-800",
-    icon: "text-blue-700 dark:text-blue-400",
+    bg: "bg-blue-50 dark:bg-blue-950/40",
+    text: "text-blue-900 dark:text-blue-200",
+    border: "border-blue-200 dark:border-blue-900/60",
+    badge:
+      "bg-blue-50 text-blue-800 border-blue-200 dark:bg-blue-950/50 dark:text-blue-200 dark:border-blue-900/60",
+    icon: "text-blue-600 dark:text-blue-400",
     dot: "bg-blue-500",
-    svg: { stroke: "#3b82f6", fill: "rgba(59,130,246,0.08)" },
+    svg: { stroke: "#2563eb", fill: "rgba(37,99,235,0.08)" },
   },
   pass: {
-    bg: "bg-green-100 dark:bg-green-900/30",
-    text: "text-green-800 dark:text-green-300",
-    border: "border-green-200 dark:border-green-800",
-    badge: "bg-green-100 text-green-800 border-green-200 dark:bg-green-900/30 dark:text-green-300 dark:border-green-800",
-    icon: "text-green-700 dark:text-green-400",
-    dot: "bg-green-500",
-    svg: { stroke: "#22c55e", fill: "rgba(34,197,94,0.08)" },
+    bg: "bg-emerald-50 dark:bg-emerald-950/40",
+    text: "text-emerald-900 dark:text-emerald-200",
+    border: "border-emerald-200 dark:border-emerald-900/60",
+    badge:
+      "bg-emerald-50 text-emerald-800 border-emerald-200 dark:bg-emerald-950/50 dark:text-emerald-200 dark:border-emerald-900/60",
+    icon: "text-emerald-600 dark:text-emerald-400",
+    dot: "bg-emerald-500",
+    svg: { stroke: "#16a34a", fill: "rgba(22,163,74,0.08)" },
   },
 } as const;
 

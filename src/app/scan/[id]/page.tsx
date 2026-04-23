@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { eq } from "drizzle-orm";
+import { eq, and, lt, desc } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   scans,
@@ -22,11 +22,13 @@ import type { Annotation } from "@/lib/annotations/mapper";
 import type { DomSnapshot } from "@/lib/scanner/capture";
 import { ScanProgress } from "@/components/scan/scan-progress";
 import { ReportOverview } from "@/components/report/report-overview";
+import { ExecutiveOverview } from "@/components/report/executive-overview";
 import { ReportTabs } from "@/components/report/report-tabs";
 import { IssuesByCategory } from "@/components/report/issues-by-category";
 import { ScreenshotCompare } from "@/components/report/screenshot-compare";
 import { ViewportTabs } from "@/components/report/viewport-tabs";
 import { LighthouseReport } from "@/components/report/lighthouse-report";
+import { ComplianceTab } from "@/components/report/compliance-tab";
 import {
   Card,
   CardContent,
@@ -234,6 +236,17 @@ export default async function ScanDetailPage({ params }: ScanDetailPageProps) {
   const overallScore = scan.overallScore ?? 0;
   const overallGrade = (scan.overallGrade as Grade | null) ?? "F";
 
+  // Find the previous completed scan of the same URL for trend comparison.
+  const previousScan = await db.query.scans.findFirst({
+    where: and(
+      eq(scans.url, scan.url),
+      eq(scans.status, "completed"),
+      lt(scans.createdAt, scan.createdAt),
+    ),
+    orderBy: [desc(scans.createdAt)],
+  });
+  const previousScore = previousScan?.overallScore ?? null;
+
   // Group issues by category
   const issuesByCategory = new Map<AuditCategory, AuditIssue[]>();
   for (const issue of issues) {
@@ -244,30 +257,34 @@ export default async function ScanDetailPage({ params }: ScanDetailPageProps) {
 
   // ── Build tab content ───────────────────────────────────────────────────
 
-  const overviewContent = (
-    <ReportOverview
-      overallScore={overallScore}
-      overallGrade={overallGrade}
-      categoryScores={catScores}
-      scanUrl={scan.url}
-      createdAt={scan.createdAt.toISOString()}
-      lighthouseScores={lighthouseScores}
-      browserEngine={scan.browserEngine ?? undefined}
-    />
-  );
-
   // Convert issuesByCategory Map to plain object for serialization
   const issuesByCategoryObj: Record<string, AuditIssue[]> = {};
   for (const [key, value] of issuesByCategory) {
     issuesByCategoryObj[key] = value;
   }
 
+  // Legacy per-category overview (radar + category cards) now lives inside
+  // the Issues tab as a lead-in so users still get the visual score summary
+  // when they drill into findings.
   const issuesContent = (
-    <IssuesByCategory
-      categoryScores={catScores}
-      issuesByCategory={issuesByCategoryObj}
-    />
+    <div className="space-y-8">
+      <ReportOverview
+        overallScore={overallScore}
+        overallGrade={overallGrade}
+        categoryScores={catScores}
+        scanUrl={scan.url}
+        createdAt={scan.createdAt.toISOString()}
+        lighthouseScores={lighthouseScores}
+        browserEngine={scan.browserEngine ?? undefined}
+      />
+      <IssuesByCategory
+        categoryScores={catScores}
+        issuesByCategory={issuesByCategoryObj}
+      />
+    </div>
   );
+
+  const complianceContent = <ComplianceTab issues={issues} />;
 
   const screenshotsContent = <ScreenshotCompare viewportResults={vpResults} />;
 
@@ -285,28 +302,33 @@ export default async function ScanDetailPage({ params }: ScanDetailPageProps) {
         { label: "Dashboard", href: "/" },
         { label: "Scan Results" },
       ]} />
-      <div className="flex flex-1 flex-col gap-4 p-4 lg:p-6">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <span className="text-sm text-muted-foreground">Scanned URL</span>
-            <p className="text-base break-words">{scan.url}</p>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            <a
-              href={`/api/scans/${id}/pdf`}
-              download
-              className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
-            >
-              <FileDown className="size-4 mr-1" />
-              PDF Report
-            </a>
-            <DeleteScanButton scanId={id} />
-          </div>
+      <div className="flex flex-1 flex-col gap-6 p-4 lg:p-6">
+        <div className="flex items-start justify-end gap-2">
+          <a
+            href={`/api/scans/${id}/pdf`}
+            download
+            className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+          >
+            <FileDown className="size-4 mr-1" />
+            PDF Report
+          </a>
+          <DeleteScanButton scanId={id} />
         </div>
 
+        <ExecutiveOverview
+          overallScore={overallScore}
+          overallGrade={overallGrade}
+          scanUrl={scan.url}
+          scanCreatedAt={scan.createdAt.toISOString()}
+          issues={issues}
+          categoryScores={catScores}
+          previousScore={previousScore}
+          previousScanId={previousScan?.id}
+        />
+
         <ReportTabs
-          overviewContent={overviewContent}
           issuesContent={issuesContent}
+          complianceContent={complianceContent}
           lighthouseContent={lighthouseContent}
           screenshotsContent={screenshotsContent}
           viewportContent={viewportContent}
