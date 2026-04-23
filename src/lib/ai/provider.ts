@@ -77,9 +77,9 @@ export async function runAiAnalysis(
   // Run analysis
   let analysis: AiAnalysisResult;
   if (provider === "claude") {
-    analysis = await analyzeWithClaude(screenshots, dimensions, context);
+    analysis = await analyzeWithClaude(screenshots, dimensions, context, scanId);
   } else {
-    analysis = await analyzeWithOpenAI(screenshots, dimensions, context);
+    analysis = await analyzeWithOpenAI(screenshots, dimensions, context, scanId);
   }
 
   // Save AI issues

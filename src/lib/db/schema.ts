@@ -6,6 +6,7 @@ import {
   boolean,
   timestamp,
   jsonb,
+  numeric,
   index,
   uniqueIndex,
 } from 'drizzle-orm/pg-core';
@@ -222,4 +223,27 @@ export const crawlPagesRelations = relations(crawlPages, ({ one }) => ({
     fields: [crawlPages.crawlId],
     references: [crawls.id],
   }),
+}));
+
+// ── AI usage tracking ────────────────────────────────────────────────────────
+// A row is written after every completed AI call (analysis or remediation)
+// so per-scan / per-workspace cost can be reported without guessing. Column
+// cost_usd is estimated client-side from token usage + pricing table.
+export const aiUsage = pgTable('ai_usage', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  scanId: uuid('scan_id'),
+  provider: text('provider').notNull(),           // 'claude' | 'openai'
+  model: text('model').notNull(),
+  operation: text('operation').notNull(),         // 'analyze' | 'remediate'
+  inputTokens: integer('input_tokens'),
+  outputTokens: integer('output_tokens'),
+  imageTokens: integer('image_tokens'),
+  costUsd: numeric('cost_usd', { precision: 10, scale: 6 }),
+  durationMs: integer('duration_ms'),
+  errored: boolean('errored').notNull().default(false),
+  errorMessage: text('error_message'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+}, (t) => ({
+  scanIdIdx: index('ai_usage_scan_id_idx').on(t.scanId),
+  createdAtIdx: index('ai_usage_created_at_idx').on(sql`${t.createdAt} DESC`),
 }));

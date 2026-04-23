@@ -3,11 +3,22 @@ import type { AiAnalysisResult } from "./provider";
 import { UI_AUDIT_SYSTEM_PROMPT, buildAnalysisPrompt } from "./prompts";
 import type { ViewportDimensions, AuditContext } from "./prompts";
 import { readScreenshotAsBase64 } from "./image-utils";
+import {
+  aiAnalysisOutputSchema,
+  AI_ANALYSIS_JSON_SCHEMA,
+} from "./schema";
+import {
+  OPENAI_VISION_MODEL,
+  AI_ANALYSIS_MAX_TOKENS,
+} from "./models";
+import { withRetryAndTimeout } from "./retry";
+import { recordAiUsage } from "./usage";
 
 export async function analyzeWithOpenAI(
   screenshots: { viewportName: string; imagePath: string }[],
   dimensions?: ViewportDimensions[],
-  context?: AuditContext
+  context?: AuditContext,
+  scanId?: string,
 ): Promise<AiAnalysisResult> {
   const apiKey = process.env.OPENAI_API_KEY;
   if (!apiKey) throw new Error("OPENAI_API_KEY is not configured");
@@ -21,8 +32,10 @@ export async function analyzeWithOpenAI(
     const { base64, mediaType } = await readScreenshotAsBase64(
       screenshot.imagePath,
     );
-
-    content.push({ type: "text", text: `Screenshot: ${screenshot.viewportName}` });
+    content.push({
+      type: "text",
+      text: `Screenshot: ${screenshot.viewportName}`,
+    });
     content.push({
       type: "image_url",
       image_url: { url: `data:${mediaType};base64,${base64}`, detail: "high" },
@@ -35,64 +48,92 @@ export async function analyzeWithOpenAI(
     text: buildAnalysisPrompt(viewportNames, dimensions, context),
   });
 
-  const response = await client.chat.completions.create({
-    model: "gpt-4o",
-    max_tokens: 8192,
-    messages: [
-      { role: "system", content: UI_AUDIT_SYSTEM_PROMPT },
-      { role: "user", content },
-    ],
-  });
-
-  const text = response.choices[0]?.message?.content;
-  if (!text) throw new Error("No response from OpenAI");
-
-  return parseAiResponse(text);
-}
-
-function parseAiResponse(text: string): AiAnalysisResult {
-  const jsonMatch = text.match(/\{[\s\S]*\}/);
-  if (!jsonMatch) return { issues: [], summary: "Failed to parse AI response" };
+  const started = Date.now();
+  let response: OpenAI.Chat.Completions.ChatCompletion | null = null;
+  let errorMessage: string | null = null;
 
   try {
-    const parsed = JSON.parse(jsonMatch[0]);
-    return {
-      issues: (parsed.issues || []).map((issue: Record<string, unknown>) => ({
-        severity: (issue.severity as string) || "info",
-        title: (issue.title as string) || "Untitled issue",
-        description: (issue.description as string) || "",
-        recommendation: (issue.recommendation as string) || "",
-        viewport: (issue.viewport as string) || "all",
-        region: parseRegion(issue.region),
-        codeFix: parseCodeFix(issue.codeFix),
-      })),
-      altTextSuggestions: (parsed.altTextSuggestions || []).map((alt: Record<string, unknown>) => ({
-        selector: (alt.selector as string) || "",
-        currentAlt: (alt.currentAlt as string) || null,
-        suggestedAlt: (alt.suggestedAlt as string) || "",
-        viewport: (alt.viewport as string) || "all",
-      })),
-      summary: (parsed.summary as string) || "",
-    };
-  } catch {
-    return { issues: [], summary: "Failed to parse AI response JSON" };
+    response = await withRetryAndTimeout(
+      (signal) =>
+        client.chat.completions.create(
+          {
+            model: OPENAI_VISION_MODEL,
+            max_tokens: AI_ANALYSIS_MAX_TOKENS,
+            messages: [
+              { role: "system", content: UI_AUDIT_SYSTEM_PROMPT },
+              { role: "user", content },
+            ],
+            response_format: {
+              type: "json_schema",
+              json_schema: {
+                name: "audit_findings",
+                strict: true,
+                schema: AI_ANALYSIS_JSON_SCHEMA,
+              },
+            },
+          },
+          { signal },
+        ),
+      { label: "openai.analyze" },
+    );
+  } catch (e) {
+    errorMessage = e instanceof Error ? e.message : String(e);
+    throw e;
+  } finally {
+    await recordAiUsage({
+      scanId,
+      provider: "openai",
+      model: OPENAI_VISION_MODEL,
+      operation: "analyze",
+      inputTokens: response?.usage?.prompt_tokens ?? null,
+      outputTokens: response?.usage?.completion_tokens ?? null,
+      imageTokens: null,
+      durationMs: Date.now() - started,
+      errored: !!errorMessage,
+      errorMessage,
+    });
   }
-}
 
-function parseRegion(region: unknown): { x: number; y: number; width: number; height: number } | null {
-  if (!region || typeof region !== "object") return null;
-  const r = region as Record<string, unknown>;
-  const x = Number(r.x), y = Number(r.y), width = Number(r.width), height = Number(r.height);
-  if (isNaN(x) || isNaN(y) || isNaN(width) || isNaN(height) || width <= 0 || height <= 0) return null;
-  return { x, y, width, height };
-}
+  const text = response?.choices[0]?.message?.content;
+  if (!text) throw new Error("OpenAI returned no content");
 
-function parseCodeFix(fix: unknown): { before: string; after: string; language: "html" | "css" } | null {
-  if (!fix || typeof fix !== "object") return null;
-  const f = fix as Record<string, unknown>;
-  const before = f.before as string;
-  const after = f.after as string;
-  if (!before || !after) return null;
-  const lang = (f.language as string) === "css" ? "css" : "html";
-  return { before, after, language: lang };
+  let rawJson: unknown;
+  try {
+    rawJson = JSON.parse(text);
+  } catch {
+    throw new Error("OpenAI response was not valid JSON despite json_schema");
+  }
+
+  const parsed = aiAnalysisOutputSchema.safeParse(rawJson);
+  if (!parsed.success) {
+    throw new Error(
+      `OpenAI response failed schema validation: ${parsed.error.message}`,
+    );
+  }
+
+  return {
+    issues: parsed.data.issues.map((i) => ({
+      severity: i.severity,
+      title: i.title,
+      description: i.description,
+      recommendation: i.recommendation,
+      viewport: i.viewport,
+      region: i.region ?? null,
+      codeFix: i.codeFix
+        ? {
+            before: i.codeFix.before,
+            after: i.codeFix.after,
+            language:
+              i.codeFix.language === "javascript" ? "html" : i.codeFix.language,
+          }
+        : null,
+    })),
+    altTextSuggestions: parsed.data.altTextSuggestions.map((a) => ({
+      selector: a.selector,
+      currentAlt: a.currentAlt,
+      suggestedAlt: a.suggestedAlt,
+      viewport: a.viewport,
+    })),
+    summary: parsed.data.summary,
+  };
 }
