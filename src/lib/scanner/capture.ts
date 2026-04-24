@@ -45,11 +45,9 @@ export interface DomElement {
 // Percy / Urlbox-native behavior) and pauses animations.
 // ─────────────────────────────────────────────────────────────────────────────
 const STABILIZATION_CSS = `
-/* Elements tagged by tagStickyElements() immediately before capture. Class
-   selectors alone miss sites that use custom position:sticky via their own
-   CSS (e.g. Elementor reveal-footer pattern with .footer-dustin — see
-   docs/MASTER_AUDIT_2026.md §6.1). The JS tagger queries getComputedStyle()
-   so it catches every source of sticky/fixed positioning. */
+/* Ordinary sticky / fixed elements tagged by tagStickyElements(): revert to
+   static so each renders once in its natural flow position (matches
+   Chromatic / Percy / Urlbox-native behaviour). */
 [data-screenshot-sticky="true"] {
   position: static !important;
   top: auto !important;
@@ -60,12 +58,25 @@ const STABILIZATION_CSS = `
   z-index: auto !important;
 }
 
+/* "Reveal footer" pattern: position:sticky combined with negative z-index
+   hides the element behind content until the user scrolls past it (seen on
+   americas.land's .footer-dustin and many Elementor-Pro sites). Stabilising
+   these to static resurfaces them — but Chromium's captureBeyondViewport
+   then paints duplicated page content into the area their old natural flow
+   occupied, producing a surprising "page appears twice" artefact on
+   narrower viewports. Hide them instead; the decorative reveal is not a
+   meaningful part of the audit capture. */
+[data-screenshot-reveal="true"] {
+  display: none !important;
+}
+
 /* Elementor's spacer placeholder that exists only while a sibling is fixed;
    when we revert sticky to static, the spacer becomes double empty space. */
 .elementor-sticky__spacer,
 [class*="elementor-sticky__spacer"] {
   display: none !important;
 }
+
 
 /* Cancel CSS animations and transitions for a consistent frame.
    Playwright's animations:"disabled" covers most cases but explicit rules
@@ -164,23 +175,85 @@ async function waitForMediaReady(page: Page): Promise<void> {
   });
 }
 
+async function measureContentBottom(page: Page): Promise<number> {
+  // Return the CSS-pixel y of the last visible non-hidden element in the
+  // document. Used to clip the full-page screenshot so Chromium's
+  // captureBeyondViewport cannot paint phantom content into trailing
+  // whitespace — e.g., a reveal-footer pattern like americas.land's
+  // .footer-dustin creates ~3000px of padding below the real content end
+  // and Chromium fills it with duplicated hero content on mobile widths.
+  return page.evaluate(() => {
+    let maxBottom = 0;
+    const nodes = document.querySelectorAll<HTMLElement>("*");
+    for (const el of Array.from(nodes)) {
+      const style = window.getComputedStyle(el);
+      if (style.display === "none") continue;
+      if (style.visibility === "hidden") continue;
+      if (style.opacity === "0") continue;
+      const rect = el.getBoundingClientRect();
+      if (rect.width === 0 || rect.height === 0) continue;
+      // Sticky/fixed elements report their current stuck position which may
+      // be above where they would naturally flow; skip those and trust the
+      // static-flow bottom from other elements.
+      if (style.position === "fixed" || style.position === "sticky") continue;
+      const bottom = rect.bottom + window.scrollY;
+      if (bottom > maxBottom) maxBottom = bottom;
+    }
+    const fallback = Math.max(
+      document.documentElement.scrollHeight,
+      document.body.scrollHeight,
+    );
+    // Guard: if the walk found nothing (unusual), fall back.
+    return Math.ceil(maxBottom > 0 ? maxBottom : fallback);
+  });
+}
+
 async function tagStickyElements(page: Page): Promise<number> {
-  // Walk the live DOM, identify every element whose computed position is
-  // 'sticky' or 'fixed', and add data-screenshot-sticky="true". The
-  // stabilization stylesheet injected into the screenshot call then reverts
-  // each to static positioning. Done via JS rather than class selectors
-  // because sites apply sticky positioning through any of: custom CSS,
-  // Tailwind/Bootstrap utility classes, JS-injected inline styles, CSS
-  // variables, etc. Only the computed-style query catches them all.
+  // Tag visible position:sticky and position:fixed elements so the
+  // stabilization stylesheet can revert them to static. Narrowings:
+  //
+  // 1. Hidden elements are skipped (display:none / visibility:hidden /
+  //    opacity:0). Sites use position:fixed + display:none for inactive
+  //    popups, mobile nav drawers, cookie banners, and modal overlays.
+  //    Surfacing them into the captured layout would duplicate content.
+  //
+  // 2. Zero-size fixed elements are skipped. Same reason — modal overlays
+  //    often sit at 0x0 until opened.
+  //
+  // 3. Tagging position:fixed is necessary: Elementor Pro's sticky header
+  //    applies `position: fixed; top: 0` via inline JS at init, even before
+  //    the user scrolls. Without tagging, Chromium's captureBeyondViewport
+  //    renders these fixed headers at unpredictable positions (or skips
+  //    them entirely in some viewport resize paths), so the final image
+  //    loses the page's top bar.
   return page.evaluate(() => {
     const elements = document.querySelectorAll<HTMLElement>("*");
     let tagged = 0;
     for (const el of Array.from(elements)) {
-      const pos = window.getComputedStyle(el).position;
-      if (pos === "sticky" || pos === "fixed") {
-        el.setAttribute("data-screenshot-sticky", "true");
-        tagged++;
+      const style = window.getComputedStyle(el);
+      if (style.position !== "sticky" && style.position !== "fixed") continue;
+      if (
+        style.display === "none" ||
+        style.visibility === "hidden" ||
+        style.opacity === "0"
+      ) {
+        continue;
       }
+      const rect = el.getBoundingClientRect();
+      if (rect.width < 10 || rect.height < 10) continue;
+
+      // Reveal-footer pattern: sticky + negative z-index. Hide rather than
+      // stabilize — Chromium's captureBeyondViewport otherwise paints
+      // duplicated page content into the area they occupy.
+      const zIndex = parseInt(style.zIndex, 10);
+      if (style.position === "sticky" && !Number.isNaN(zIndex) && zIndex < 0) {
+        el.setAttribute("data-screenshot-reveal", "true");
+        tagged++;
+        continue;
+      }
+
+      el.setAttribute("data-screenshot-sticky", "true");
+      tagged++;
     }
     return tagged;
   });
@@ -320,8 +393,12 @@ export async function captureViewport(
       console.log(`Tagged ${stickyTagged} sticky/fixed element(s) for capture`);
     }
 
+    // Measure the real content bottom BEFORE stabilization so we don't base
+    // the crop on the post-stabilization layout (which may be taller).
+    const contentBottom = await measureContentBottom(page);
+
     const { screenshotPath, screenshotWidth, screenshotHeight } =
-      await takeFullPageScreenshot(page, scanId, device);
+      await takeFullPageScreenshot(page, scanId, device, contentBottom);
 
     const viewportScreenshotPath = await takeViewportThumbnail(
       page,
@@ -372,6 +449,7 @@ async function takeFullPageScreenshot(
   page: Page,
   scanId: string,
   device: DevicePreset,
+  contentBottom: number,
 ): Promise<{
   screenshotPath: string;
   screenshotWidth: number;
@@ -404,18 +482,38 @@ async function takeFullPageScreenshot(
   const origWidth = meta.width ?? device.width;
   const origHeight = meta.height ?? device.height;
 
+  // Crop to the measured real content height. Chromium's captureBeyondViewport
+  // sometimes fills empty trailing space (common on pages that use
+  // min-height:100vh or reveal-footer patterns) with duplicated content —
+  // see measureContentBottom() for rationale.
+  const deviceScale = origWidth && device.width ? origWidth / device.width : 1;
+  const targetHeight = Math.min(
+    origHeight,
+    Math.max(device.height, Math.ceil(contentBottom * deviceScale)),
+  );
+  const canvasBuffer =
+    targetHeight < origHeight
+      ? await sharp(pngBuffer)
+          .extract({ left: 0, top: 0, width: origWidth, height: targetHeight })
+          .png()
+          .toBuffer()
+      : pngBuffer;
+  const canvasMeta = await sharp(canvasBuffer).metadata();
+  const canvasWidth = canvasMeta.width ?? origWidth;
+  const canvasHeight = canvasMeta.height ?? targetHeight;
+
   const needsDownscale =
-    origWidth > WEBP_MAX_DIM || origHeight > WEBP_MAX_DIM;
+    canvasWidth > WEBP_MAX_DIM || canvasHeight > WEBP_MAX_DIM;
 
   let webpBuffer: Buffer;
   if (needsDownscale) {
-    const scale = WEBP_MAX_DIM / Math.max(origWidth, origHeight);
-    webpBuffer = await sharp(pngBuffer)
-      .resize(Math.round(origWidth * scale), Math.round(origHeight * scale))
+    const scale = WEBP_MAX_DIM / Math.max(canvasWidth, canvasHeight);
+    webpBuffer = await sharp(canvasBuffer)
+      .resize(Math.round(canvasWidth * scale), Math.round(canvasHeight * scale))
       .webp({ quality: 82 })
       .toBuffer();
   } else {
-    webpBuffer = await sharp(pngBuffer).webp({ quality: 82 }).toBuffer();
+    webpBuffer = await sharp(canvasBuffer).webp({ quality: 82 }).toBuffer();
   }
 
   await fs.writeFile(filepath, webpBuffer);
@@ -423,8 +521,8 @@ async function takeFullPageScreenshot(
   const finalMeta = await sharp(webpBuffer).metadata();
   return {
     screenshotPath: `/api/screenshots/${scanId}/${filename}`,
-    screenshotWidth: finalMeta.width ?? origWidth,
-    screenshotHeight: finalMeta.height ?? origHeight,
+    screenshotWidth: finalMeta.width ?? canvasWidth,
+    screenshotHeight: finalMeta.height ?? canvasHeight,
   };
 }
 
