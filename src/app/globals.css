@@ -61,7 +61,8 @@
   --secondary: oklch(0.967 0.001 286.375);
   --secondary-foreground: oklch(0.21 0.006 285.885);
   --muted: oklch(0.967 0.001 286.375);
-  --muted-foreground: oklch(0.552 0.016 285.938);
+  /* Deepened from oklch(0.552) to meet WCAG AA on muted backgrounds. */
+  --muted-foreground: oklch(0.48 0.016 285.938);
   --accent: oklch(0.967 0.001 286.375);
   --accent-foreground: oklch(0.21 0.006 285.885);
   --destructive: oklch(0.577 0.245 27.325);
@@ -95,7 +96,8 @@
   --secondary: oklch(0.274 0.006 286.033);
   --secondary-foreground: oklch(0.985 0 0);
   --muted: oklch(0.274 0.006 286.033);
-  --muted-foreground: oklch(0.705 0.015 286.067);
+  /* Slightly brighter for a clearer primary / secondary text gap in dark mode. */
+  --muted-foreground: oklch(0.748 0.015 286.067);
   --accent: oklch(0.274 0.006 286.033);
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.704 0.191 22.216);
@@ -124,23 +126,52 @@
   html {
     @apply font-sans;
     font-size: 16px;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
   }
+  /* UI default: tight line-height for dense interfaces. Prose elements
+     (p, li, [data-prose]) get a looser body value below. */
   body {
     @apply bg-background text-foreground;
     font-size: 1rem;
-    line-height: 1.7;
-    letter-spacing: -0.01em;
+    line-height: 1.5;
+    letter-spacing: 0;
   }
-  h1 { @apply text-3xl font-bold tracking-tight; }
-  h2 { @apply text-2xl font-semibold tracking-tight; }
-  h3 { @apply text-xl font-semibold; }
-  h4 { @apply text-lg font-medium; }
-  p { line-height: 1.7; }
+
+  /* 4-step type scale — used consistently across the report. Tailwind's
+     text-xl/2xl/3xl sometimes lands on odd line-heights; these rules
+     normalize heading rhythm so card titles + section headers don't jitter. */
+  h1 { @apply text-3xl font-semibold tracking-tight; line-height: 1.2; }
+  h2 { @apply text-2xl font-semibold tracking-tight; line-height: 1.25; }
+  h3 { @apply text-lg font-semibold tracking-tight; line-height: 1.35; }
+  h4 { @apply text-base font-medium; line-height: 1.4; }
+
+  /* Body copy keeps the more generous leading; UI controls use the tight
+     base line-height set on body{}. Scope prose rhythm to genuine
+     paragraphs only, not every component that happens to wrap <p>. */
+  p, li, [data-prose] {
+    line-height: 1.6;
+  }
+
+  /* Tabular-nums everywhere a score, duration, or count appears, so columns
+     of numbers align. Individual components can opt out with font-variant-numeric. */
+  [data-numeric], .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Better default form / button focus ring on the WCAG AA-contrasted ring
+     token so it's visible on both light and dark backgrounds. */
+  :focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 2px var(--background), 0 0 0 4px var(--ring);
+  }
 }
 
-/* Micro-interactions */
-button:not(:disabled):active,
-[role="button"]:not(:disabled):active {
+/* Micro-interactions — opt-in via [data-press], not every button. The
+   previous every-button transform: scale(0.98) felt twitchy on icon buttons
+   and row-level actions where the press is incidental, not a CTA. */
+[data-press]:not(:disabled):active {
   transform: scale(0.98);
 }
 

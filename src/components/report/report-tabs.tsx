@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 
 interface ReportTabsProps {
+  summaryContent: ReactNode;
   issuesContent: ReactNode;
   complianceContent: ReactNode;
   lighthouseContent?: ReactNode;
@@ -12,6 +13,7 @@ interface ReportTabsProps {
 }
 
 export function ReportTabs({
+  summaryContent,
   issuesContent,
   complianceContent,
   lighthouseContent,
@@ -19,8 +21,9 @@ export function ReportTabs({
   viewportContent,
 }: ReportTabsProps) {
   return (
-    <Tabs defaultValue="issues">
+    <Tabs defaultValue="summary">
       <TabsList variant="line">
+        <TabsTrigger value="summary">Summary</TabsTrigger>
         <TabsTrigger value="issues">Issues</TabsTrigger>
         <TabsTrigger value="compliance">Compliance</TabsTrigger>
         {lighthouseContent && <TabsTrigger value="lighthouse">Lighthouse</TabsTrigger>}
@@ -28,6 +31,9 @@ export function ReportTabs({
         <TabsTrigger value="screenshots">Screenshots</TabsTrigger>
       </TabsList>
 
+      <TabsContent value="summary">
+        <div className="mt-6 animate-in fade-in-0 duration-200">{summaryContent}</div>
+      </TabsContent>
       <TabsContent value="issues">
         <div className="mt-6 animate-in fade-in-0 duration-200">{issuesContent}</div>
       </TabsContent>

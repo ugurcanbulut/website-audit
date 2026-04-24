@@ -335,18 +335,19 @@ export default async function ScanDetailPage({ params }: ScanDetailPageProps) {
           <DeleteScanButton scanId={id} />
         </div>
 
-        <ExecutiveOverview
-          overallScore={overallScore}
-          overallGrade={overallGrade}
-          scanUrl={scan.url}
-          scanCreatedAt={scan.createdAt.toISOString()}
-          issues={issues}
-          categoryScores={catScores}
-          previousScore={previousScore}
-          previousScanId={previousScan?.id}
-        />
-
         <ReportTabs
+          summaryContent={
+            <ExecutiveOverview
+              overallScore={overallScore}
+              overallGrade={overallGrade}
+              scanUrl={scan.url}
+              scanCreatedAt={scan.createdAt.toISOString()}
+              issues={issues}
+              categoryScores={catScores}
+              previousScore={previousScore}
+              previousScanId={previousScan?.id}
+            />
+          }
           issuesContent={issuesContent}
           complianceContent={complianceContent}
           lighthouseContent={lighthouseContent}
