@@ -12,10 +12,83 @@ import {
 } from 'drizzle-orm/pg-core';
 import { relations, sql } from 'drizzle-orm';
 
+// ── Workspaces / Users / Members ─────────────────────────────────────────────
+// Multi-tenancy foundation. All domain rows gain a nullable workspace_id;
+// existing single-tenant data stays NULL and remains visible to any
+// authenticated admin. Application queries add a workspace filter when the
+// caller is identified.
+
+export const workspaces = pgTable('workspaces', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  name: text('name').notNull(),
+  slug: text('slug').notNull(),
+  retentionDays: integer('retention_days').notNull().default(90),
+  aiMonthlyBudgetUsd: numeric('ai_monthly_budget_usd', { precision: 10, scale: 2 }),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+}, (t) => ({
+  slugUniq: uniqueIndex('workspaces_slug_uniq').on(t.slug),
+}));
+
+export const users = pgTable('users', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  email: text('email').notNull(),
+  name: text('name'),
+  // passwordHash is bcrypt; optional because SSO (Sprint 7) bypasses it.
+  passwordHash: text('password_hash'),
+  emailVerifiedAt: timestamp('email_verified_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+}, (t) => ({
+  emailUniq: uniqueIndex('users_email_uniq').on(sql`lower(${t.email})`),
+}));
+
+export const workspaceMembers = pgTable('workspace_members', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  workspaceId: uuid('workspace_id')
+    .notNull()
+    .references(() => workspaces.id, { onDelete: 'cascade' }),
+  userId: uuid('user_id')
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  role: text('role').notNull().default('viewer'), // admin | auditor | viewer
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+}, (t) => ({
+  workspaceUserUniq: uniqueIndex('workspace_members_workspace_user_uniq')
+    .on(t.workspaceId, t.userId),
+  userIdIdx: index('workspace_members_user_id_idx').on(t.userId),
+}));
+
+export const workspacesRelations = relations(workspaces, ({ many }) => ({
+  members: many(workspaceMembers),
+}));
+export const usersRelations = relations(users, ({ many }) => ({
+  memberships: many(workspaceMembers),
+}));
+export const workspaceMembersRelations = relations(
+  workspaceMembers,
+  ({ one }) => ({
+    workspace: one(workspaces, {
+      fields: [workspaceMembers.workspaceId],
+      references: [workspaces.id],
+    }),
+    user: one(users, {
+      fields: [workspaceMembers.userId],
+      references: [users.id],
+    }),
+  }),
+);
+
 // ── Scan Batches ─────────────────────────────────────────────────────────────
 
 export const scanBatches = pgTable('scan_batches', {
   id: uuid('id').primaryKey().defaultRandom(),
+  workspaceId: uuid('workspace_id').references(() => workspaces.id, {
+    onDelete: 'cascade',
+  }),
+  createdByUserId: uuid('created_by_user_id').references(() => users.id, {
+    onDelete: 'set null',
+  }),
   name: text('name'),
   urls: jsonb('urls').notNull(), // string[]
   status: text('status').notNull().default('pending'),
@@ -31,6 +104,7 @@ export const scanBatches = pgTable('scan_batches', {
   completedAt: timestamp('completed_at'),
 }, (t) => ({
   createdAtIdx: index('scan_batches_created_at_idx').on(sql`${t.createdAt} DESC`),
+  workspaceIdIdx: index('scan_batches_workspace_id_idx').on(t.workspaceId),
 }));
 
 export const scanBatchesRelations = relations(scanBatches, ({ many }) => ({
@@ -41,6 +115,12 @@ export const scanBatchesRelations = relations(scanBatches, ({ many }) => ({
 
 export const scans = pgTable('scans', {
   id: uuid('id').primaryKey().defaultRandom(),
+  workspaceId: uuid('workspace_id').references(() => workspaces.id, {
+    onDelete: 'cascade',
+  }),
+  createdByUserId: uuid('created_by_user_id').references(() => users.id, {
+    onDelete: 'set null',
+  }),
   url: text('url').notNull(),
   batchId: uuid('batch_id').references(() => scanBatches.id, { onDelete: 'cascade' }),
   status: text('status').notNull().default('pending'),
@@ -57,6 +137,7 @@ export const scans = pgTable('scans', {
   batchIdIdx: index('scans_batch_id_idx').on(t.batchId),
   createdAtIdx: index('scans_created_at_idx').on(sql`${t.createdAt} DESC`),
   statusIdx: index('scans_status_idx').on(t.status),
+  workspaceIdIdx: index('scans_workspace_id_idx').on(t.workspaceId),
 }));
 
 export const scansRelations = relations(scans, ({ one, many }) => ({
@@ -80,14 +161,11 @@ export const viewportResults = pgTable('viewport_results', {
   width: integer('width').notNull(),
   height: integer('height').notNull(),
   screenshotPath: text('screenshot_path').notNull(),
-  domSnapshot: jsonb('dom_snapshot'),
+  // Small, always-queried fields stay on the hot row. Heavy blobs moved
+  // to viewport_result_blobs so list queries don't drag MBs per row.
   performanceMetrics: jsonb('performance_metrics'),
   deviceName: text('device_name'),
-  axeResults: jsonb('axe_results'),
   responseHeaders: jsonb('response_headers'),
-  pageHtml: text('page_html'),
-  pageCss: text('page_css'),
-  lighthouseJson: jsonb('lighthouse_json'),
   screenshotWidth: integer('screenshot_width'),
   screenshotHeight: integer('screenshot_height'),
   viewportScreenshotPath: text('viewport_screenshot_path'),
@@ -99,13 +177,41 @@ export const viewportResults = pgTable('viewport_results', {
     .on(t.scanId, t.viewportName),
 }));
 
+// Heavy artefacts kept in a separate table so the hot viewport_results row
+// stays <1KB. The audit engine writes this during processing; the UI reads
+// it only when the Lighthouse or By-Viewport tab opens.
+export const viewportResultBlobs = pgTable('viewport_result_blobs', {
+  viewportResultId: uuid('viewport_result_id')
+    .primaryKey()
+    .references(() => viewportResults.id, { onDelete: 'cascade' }),
+  domSnapshot: jsonb('dom_snapshot'),
+  axeResults: jsonb('axe_results'),
+  pageHtml: text('page_html'),
+  pageCss: text('page_css'),
+  lighthouseJson: jsonb('lighthouse_json'),
+});
+
 export const viewportResultsRelations = relations(viewportResults, ({ one, many }) => ({
   scan: one(scans, {
     fields: [viewportResults.scanId],
     references: [scans.id],
   }),
   auditIssues: many(auditIssues),
+  blobs: one(viewportResultBlobs, {
+    fields: [viewportResults.id],
+    references: [viewportResultBlobs.viewportResultId],
+  }),
 }));
+
+export const viewportResultBlobsRelations = relations(
+  viewportResultBlobs,
+  ({ one }) => ({
+    viewportResult: one(viewportResults, {
+      fields: [viewportResultBlobs.viewportResultId],
+      references: [viewportResults.id],
+    }),
+  }),
+);
 
 // ── Audit Issues ─────────────────────────────────────────────────────────────
 
@@ -169,6 +275,12 @@ export const categoryScoresRelations = relations(categoryScores, ({ one }) => ({
 // ── Crawls ───────────────────────────────────────────────────────────────
 export const crawls = pgTable('crawls', {
   id: uuid('id').primaryKey().defaultRandom(),
+  workspaceId: uuid('workspace_id').references(() => workspaces.id, {
+    onDelete: 'cascade',
+  }),
+  createdByUserId: uuid('created_by_user_id').references(() => users.id, {
+    onDelete: 'set null',
+  }),
   seedUrl: text('seed_url').notNull(),
   status: text('status').notNull().default('pending'),
   config: jsonb('config').notNull(), // CrawlConfig
@@ -179,6 +291,7 @@ export const crawls = pgTable('crawls', {
   completedAt: timestamp('completed_at'),
 }, (t) => ({
   createdAtIdx: index('crawls_created_at_idx').on(sql`${t.createdAt} DESC`),
+  workspaceIdIdx: index('crawls_workspace_id_idx').on(t.workspaceId),
 }));
 
 export const crawlsRelations = relations(crawls, ({ many }) => ({
@@ -231,6 +344,7 @@ export const crawlPagesRelations = relations(crawlPages, ({ one }) => ({
 // cost_usd is estimated client-side from token usage + pricing table.
 export const aiUsage = pgTable('ai_usage', {
   id: uuid('id').primaryKey().defaultRandom(),
+  workspaceId: uuid('workspace_id'),
   scanId: uuid('scan_id'),
   provider: text('provider').notNull(),           // 'claude' | 'openai'
   model: text('model').notNull(),
@@ -245,5 +359,6 @@ export const aiUsage = pgTable('ai_usage', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
 }, (t) => ({
   scanIdIdx: index('ai_usage_scan_id_idx').on(t.scanId),
+  workspaceIdIdx: index('ai_usage_workspace_id_idx').on(t.workspaceId),
   createdAtIdx: index('ai_usage_created_at_idx').on(sql`${t.createdAt} DESC`),
 }));

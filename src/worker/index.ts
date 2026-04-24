@@ -7,13 +7,21 @@
 // don't leave orphaned scan jobs in a stuck state.
 
 async function main() {
-  console.log("[worker] starting scan + crawl workers");
+  console.log("[worker] starting scan + crawl + retention workers");
 
   const { startScanWorker } = await import("@/lib/queue/scan-worker");
   const { startCrawlWorker } = await import("@/lib/queue/crawl-worker");
+  const { startRetentionWorker } = await import("@/lib/queue/retention-worker");
+  const { scheduleRetentionJob } = await import("@/lib/queue/retention-queue");
 
-  await Promise.all([startScanWorker(), startCrawlWorker()]);
-  console.log("[worker] workers ready");
+  await Promise.all([
+    startScanWorker(),
+    startCrawlWorker(),
+    startRetentionWorker(),
+  ]);
+  // Register the daily cron on startup; idempotent if already scheduled.
+  await scheduleRetentionJob();
+  console.log("[worker] workers ready, retention cron scheduled");
 
   const shutdown = (signal: string) => {
     console.log(`[worker] received ${signal}, exiting`);

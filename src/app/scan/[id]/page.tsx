@@ -1,9 +1,10 @@
 import { notFound } from "next/navigation";
-import { eq, and, lt, desc } from "drizzle-orm";
+import { eq, and, lt, desc, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
 import {
   scans,
   viewportResults as viewportResultsTable,
+  viewportResultBlobs as viewportResultBlobsTable,
   categoryScores as categoryScoresTable,
   auditIssues,
 } from "@/lib/db/schema";
@@ -137,6 +138,21 @@ export default async function ScanDetailPage({ params }: ScanDetailPageProps) {
     }),
   ]);
 
+  // Heavy blobs live in a sibling table; load them only now that the scan is
+  // confirmed complete. Used for annotations (domSnapshot) and Lighthouse tab
+  // rendering (lighthouseJson).
+  const viewportBlobsRaw = vpResultsRaw.length
+    ? await db.query.viewportResultBlobs.findMany({
+        where: inArray(
+          viewportResultBlobsTable.viewportResultId,
+          vpResultsRaw.map((vr) => vr.id),
+        ),
+      })
+    : [];
+  const blobByVpId = new Map(
+    viewportBlobsRaw.map((b) => [b.viewportResultId, b]),
+  );
+
   // Map DB rows to typed objects
   const vpResults: ViewportResult[] = vpResultsRaw.map((vr) => ({
     id: vr.id,
@@ -186,7 +202,9 @@ export default async function ScanDetailPage({ params }: ScanDetailPageProps) {
   // Compute annotations per viewport
   const annotationsByViewport: Record<string, Annotation[]> = {};
   for (const vr of vpResultsRaw) {
-    const snapshot = vr.domSnapshot as DomSnapshot | null;
+    const snapshot = (blobByVpId.get(vr.id)?.domSnapshot ?? null) as
+      | DomSnapshot
+      | null;
     if (snapshot) {
       annotationsByViewport[vr.viewportName] = mapIssuesToAnnotations(
         issues,
@@ -202,7 +220,9 @@ export default async function ScanDetailPage({ params }: ScanDetailPageProps) {
   let mobileLhr: Record<string, unknown> | undefined;
 
   for (const vr of vpResultsRaw) {
-    const lhJson = vr.lighthouseJson as Record<string, unknown> | null;
+    const lhJson = (blobByVpId.get(vr.id)?.lighthouseJson ?? null) as
+      | Record<string, unknown>
+      | null;
     if (!lhJson) continue;
 
     // New format: { desktop: LHR, mobile: LHR }

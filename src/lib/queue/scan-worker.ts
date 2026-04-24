@@ -2,7 +2,13 @@ import { eq } from "drizzle-orm";
 import { createRedisConnection } from "./connection";
 import type { ScanJobData } from "./scan-queue";
 import { db } from "@/lib/db";
-import { scans, viewportResults, auditIssues, categoryScores } from "@/lib/db/schema";
+import {
+  scans,
+  viewportResults,
+  viewportResultBlobs,
+  auditIssues,
+  categoryScores,
+} from "@/lib/db/schema";
 import { captureViewport } from "@/lib/scanner/capture";
 import { launchBrowser, closeBrowser } from "@/lib/scanner/browser";
 import { publishScanEvent } from "@/lib/queue/scan-events";
@@ -78,24 +84,39 @@ async function processScanJob(data: ScanJobData): Promise<void> {
         captureHtmlCss: isFirst,  // Only capture HTML/CSS for first viewport
       });
 
-      // Save viewport result with expanded data
-      await db.insert(viewportResults).values({
-        scanId,
-        viewportName: device.name,
-        width: device.width,
-        height: device.height,
-        screenshotPath: result.screenshotPath,
-        viewportScreenshotPath: result.viewportScreenshotPath ?? null,
-        domSnapshot: result.domSnapshot,
-        performanceMetrics: result.performanceMetrics,
-        deviceName: device.name,
-        axeResults: result.axeResults ?? null,
-        responseHeaders: result.responseHeaders ?? null,
-        pageHtml: result.pageHtml ?? null,
-        pageCss: result.pageCss ?? null,
-        screenshotWidth: result.screenshotWidth ?? null,
-        screenshotHeight: result.screenshotHeight ?? null,
-      });
+      // Save viewport result — hot row first, then the heavy blobs in the
+      // sibling table. Split keeps viewport_results <1KB for fast list queries.
+      const [insertedViewport] = await db
+        .insert(viewportResults)
+        .values({
+          scanId,
+          viewportName: device.name,
+          width: device.width,
+          height: device.height,
+          screenshotPath: result.screenshotPath,
+          viewportScreenshotPath: result.viewportScreenshotPath ?? null,
+          performanceMetrics: result.performanceMetrics,
+          deviceName: device.name,
+          responseHeaders: result.responseHeaders ?? null,
+          screenshotWidth: result.screenshotWidth ?? null,
+          screenshotHeight: result.screenshotHeight ?? null,
+        })
+        .returning({ id: viewportResults.id });
+
+      const hasBlobs =
+        !!result.domSnapshot ||
+        !!result.axeResults ||
+        !!result.pageHtml ||
+        !!result.pageCss;
+      if (hasBlobs) {
+        await db.insert(viewportResultBlobs).values({
+          viewportResultId: insertedViewport.id,
+          domSnapshot: result.domSnapshot ?? null,
+          axeResults: result.axeResults ?? null,
+          pageHtml: result.pageHtml ?? null,
+          pageCss: result.pageCss ?? null,
+        });
+      }
 
       publishScanEvent(scanId, {
         type: "viewport_complete",

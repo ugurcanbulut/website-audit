@@ -269,15 +269,27 @@ export async function GET(
     }
   }
 
-  const csvContent = [
-    headers.join(","),
-    ...rows.map((row) => row.map((cell) => esc(cell)).join(",")),
-  ].join("\n");
+  // Stream the CSV rather than materialising the whole string for multi-MB
+  // exports. Each chunk is a single row — small enough that backpressure is
+  // naturally spread across the TCP send buffer.
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.enqueue(encoder.encode(headers.join(",") + "\n"));
+      for (const row of rows) {
+        controller.enqueue(
+          encoder.encode(row.map((cell) => esc(cell)).join(",") + "\n"),
+        );
+      }
+      controller.close();
+    },
+  });
 
-  return new NextResponse(csvContent, {
+  return new NextResponse(stream, {
     headers: {
-      "Content-Type": "text/csv",
+      "Content-Type": "text/csv; charset=utf-8",
       "Content-Disposition": `attachment; filename="crawl-${id}${filenameSuffix}.csv"`,
+      "Cache-Control": "no-store",
     },
   });
 }

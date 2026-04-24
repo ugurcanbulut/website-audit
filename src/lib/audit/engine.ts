@@ -1,6 +1,10 @@
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { viewportResults, auditIssues } from "@/lib/db/schema";
+import {
+  viewportResults,
+  viewportResultBlobs,
+  auditIssues,
+} from "@/lib/db/schema";
 import type { BrowserSession } from "@/lib/scanner/browser";
 import type { DomSnapshot } from "@/lib/scanner/capture";
 import { DEVICE_PRESETS } from "@/lib/scanner/devices";
@@ -47,6 +51,15 @@ export async function runAuditEngine(
 
   if (results.length === 0) return { lighthouseScores: null };
 
+  // Load the heavy blobs (domSnapshot / axeResults / pageHtml / pageCss) in
+  // one round-trip instead of per-row queries. Indexed into a Map for O(1)
+  // lookup by viewport-result id.
+  const resultIds = results.map((r) => r.id);
+  const blobs = await db.query.viewportResultBlobs.findMany({
+    where: inArray(viewportResultBlobs.viewportResultId, resultIds),
+  });
+  const blobById = new Map(blobs.map((b) => [b.viewportResultId, b]));
+
   const allIssues: AuditIssueInsert[] = [];
 
   // Build lookup maps
@@ -66,10 +79,11 @@ export async function runAuditEngine(
     const viewportResultId = result.id;
     const viewportName = result.viewportName;
     const viewportType = getViewportType(viewportName);
-    const snapshot = result.domSnapshot as DomSnapshot | null;
+    const blob = blobById.get(result.id);
+    const snapshot = (blob?.domSnapshot ?? null) as DomSnapshot | null;
 
     // 1. axe-core results (REPLACES custom accessibility.ts)
-    const axeData = result.axeResults as Record<string, unknown> | null;
+    const axeData = (blob?.axeResults ?? null) as Record<string, unknown> | null;
     if (axeData) {
       try {
         const axeIssues = processAxeResults({
@@ -85,7 +99,7 @@ export async function runAuditEngine(
     }
 
     // 2. HTMLHint (run once on first viewport)
-    const pageHtml = result.pageHtml as string | null;
+    const pageHtml = (blob?.pageHtml ?? null) as string | null;
     if (pageHtml && result.id === results[0].id) {
       try {
         const htmlIssues = await runHtmlHint({ html: pageHtml, viewportName });
@@ -130,7 +144,8 @@ export async function runAuditEngine(
 
   const snapshotMap = new Map<string, DomSnapshot>();
   for (const result of results) {
-    const snapshot = result.domSnapshot as DomSnapshot | null;
+    const blob = blobById.get(result.id);
+    const snapshot = (blob?.domSnapshot ?? null) as DomSnapshot | null;
     if (snapshot) {
       snapshotMap.set(result.viewportName, snapshot);
     }
@@ -151,7 +166,9 @@ export async function runAuditEngine(
   // ── CSS analysis (run once) ───────────────────────────────────────
 
   const firstResult = results[0];
-  const pageCss = firstResult?.pageCss as string | null;
+  const pageCss = firstResult
+    ? ((blobById.get(firstResult.id)?.pageCss ?? null) as string | null)
+    : null;
   if (pageCss) {
     try {
       const cssOutput = await runCssAnalysis({
@@ -176,7 +193,12 @@ export async function runAuditEngine(
   const lighthouseData: Record<string, unknown> = {};
 
   if (session.debuggingPort) {
-    // Desktop run
+    // Lighthouse desktop and mobile run sequentially. They cannot run in
+    // parallel within the same Node.js process because Lighthouse uses
+    // process-global performance.mark() counters that the two invocations
+    // clobber ("The start lh:runner:gather performance mark has not been
+    // set"). True parallelism would require either two Node processes or a
+    // patched Lighthouse that namespaces its marks — out of scope here.
     try {
       console.log(`Running Lighthouse Desktop on ${url}...`);
       const lhDesktop = await runLighthouse({
@@ -187,21 +209,28 @@ export async function runAuditEngine(
       });
 
       lighthouseScores = {};
-      if (lhDesktop.categoryScores.performance !== undefined) lighthouseScores.performance = lhDesktop.categoryScores.performance;
-      if (lhDesktop.categoryScores.bestPractices !== undefined) lighthouseScores["best-practices"] = lhDesktop.categoryScores.bestPractices;
-      if (lhDesktop.categoryScores.seo !== undefined) lighthouseScores.seo = lhDesktop.categoryScores.seo;
+      if (lhDesktop.categoryScores.performance !== undefined)
+        lighthouseScores.performance = lhDesktop.categoryScores.performance;
+      if (lhDesktop.categoryScores.bestPractices !== undefined)
+        lighthouseScores["best-practices"] =
+          lhDesktop.categoryScores.bestPractices;
+      if (lhDesktop.categoryScores.seo !== undefined)
+        lighthouseScores.seo = lhDesktop.categoryScores.seo;
 
       for (const issue of lhDesktop.issues) {
         allIssues.push({ ...issue, scanId, viewportResultId: firstResult.id });
       }
-
       lighthouseData.desktop = lhDesktop.lhr;
-      console.log(`Lighthouse Desktop: perf=${lighthouseScores.performance}, seo=${lighthouseScores.seo}`);
+      console.log(
+        `Lighthouse Desktop: perf=${lighthouseScores.performance}, seo=${lighthouseScores.seo}`,
+      );
     } catch (e) {
-      console.warn("Lighthouse Desktop failed:", e instanceof Error ? e.message : e);
+      console.warn(
+        "Lighthouse Desktop failed:",
+        e instanceof Error ? e.message : e,
+      );
     }
 
-    // Mobile run
     try {
       console.log(`Running Lighthouse Mobile on ${url}...`);
       const lhMobile = await runLighthouse({
@@ -210,18 +239,31 @@ export async function runAuditEngine(
         categories: ["performance", "best-practices", "seo"],
         formFactor: "mobile",
       });
-
       lighthouseData.mobile = lhMobile.lhr;
-      console.log(`Lighthouse Mobile: perf=${lhMobile.categoryScores.performance}`);
+      console.log(
+        `Lighthouse Mobile: perf=${lhMobile.categoryScores.performance}`,
+      );
     } catch (e) {
-      console.warn("Lighthouse Mobile failed:", e instanceof Error ? e.message : e);
+      console.warn(
+        "Lighthouse Mobile failed:",
+        e instanceof Error ? e.message : e,
+      );
     }
 
-    // Store both LHR results
+    // Store both LHR results — lighthouse_json lives in viewport_result_blobs
+    // now. Upsert so this works whether or not a blob row already exists for
+    // the first viewport (it does when captureHtmlCss=true wrote dom+axe+html).
     if (Object.keys(lighthouseData).length > 0) {
-      await db.update(viewportResults)
-        .set({ lighthouseJson: lighthouseData })
-        .where(eq(viewportResults.id, firstResult.id));
+      await db
+        .insert(viewportResultBlobs)
+        .values({
+          viewportResultId: firstResult.id,
+          lighthouseJson: lighthouseData,
+        })
+        .onConflictDoUpdate({
+          target: viewportResultBlobs.viewportResultId,
+          set: { lighthouseJson: lighthouseData },
+        });
     }
   } else {
     console.log(`Lighthouse skipped (engine: ${session.engine}, no debugging port)`);

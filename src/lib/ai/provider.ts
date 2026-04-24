@@ -1,6 +1,10 @@
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { viewportResults, auditIssues } from "@/lib/db/schema";
+import {
+  viewportResults,
+  viewportResultBlobs,
+  auditIssues,
+} from "@/lib/db/schema";
 import type { AiProvider } from "@/lib/types";
 import type { DomSnapshot } from "@/lib/scanner/capture";
 import type { ViewportDimensions, AuditContext } from "./prompts";
@@ -50,6 +54,20 @@ export async function runAiAnalysis(
   // to avoid exceeding AI token limits
   const selectedResults = selectRepresentativeViewports(results);
 
+  // Fetch the dom snapshots (moved to viewport_result_blobs) for the selected
+  // viewports only — minimises payload vs fetching every blob.
+  const selectedBlobs = selectedResults.length
+    ? await db.query.viewportResultBlobs.findMany({
+        where: inArray(
+          viewportResultBlobs.viewportResultId,
+          selectedResults.map((r) => r.id),
+        ),
+      })
+    : [];
+  const blobBySelectedId = new Map(
+    selectedBlobs.map((b) => [b.viewportResultId, b]),
+  );
+
   // Prefer the viewport-sized thumbnail over the full-page screenshot: AI
   // providers downscale images (Claude: 1568px long edge; GPT-5: 2048px for
   // "high" detail) and a 1920x8000 full-page capture loses UI fidelity.
@@ -60,7 +78,9 @@ export async function runAiAnalysis(
   }));
 
   const dimensions: ViewportDimensions[] = selectedResults.map((r) => {
-    const snapshot = r.domSnapshot as DomSnapshot | null;
+    const snapshot = (blobBySelectedId.get(r.id)?.domSnapshot ?? null) as
+      | DomSnapshot
+      | null;
     const usesViewportThumbnail = !!r.viewportScreenshotPath;
     return {
       name: r.viewportName,
@@ -174,8 +194,12 @@ async function buildAuditContext(
     );
   }
 
-  // Build page structure summary from DOM snapshot
-  const snapshot = firstResult.domSnapshot as DomSnapshot | null;
+  // Build page structure summary from DOM snapshot (relocated to
+  // viewport_result_blobs — one point lookup)
+  const firstBlob = await db.query.viewportResultBlobs.findFirst({
+    where: eq(viewportResultBlobs.viewportResultId, firstResult.id),
+  });
+  const snapshot = (firstBlob?.domSnapshot ?? null) as DomSnapshot | null;
   if (snapshot) {
     const headings = snapshot.elements
       .filter((el) => /^h[1-6]$/.test(el.tagName) && el.isVisible)
