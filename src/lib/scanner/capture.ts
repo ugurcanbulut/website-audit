@@ -45,25 +45,19 @@ export interface DomElement {
 // Percy / Urlbox-native behavior) and pauses animations.
 // ─────────────────────────────────────────────────────────────────────────────
 const STABILIZATION_CSS = `
-/* Elementor Pro sticky (adds .elementor-sticky--active + inline position:fixed) */
-.elementor-sticky--active,
-.elementor-sticky--effects,
-/* Generic sticky/fixed markers commonly used by WordPress/Bootstrap/Tailwind */
-[class*="is-sticky"],
-[data-sticky="true"],
-.sticky,
-.sticky-top,
-.sticky-bottom,
-.sticky-header,
-.sticky-footer,
-.fixed-top,
-.fixed-bottom {
+/* Elements tagged by tagStickyElements() immediately before capture. Class
+   selectors alone miss sites that use custom position:sticky via their own
+   CSS (e.g. Elementor reveal-footer pattern with .footer-dustin — see
+   docs/MASTER_AUDIT_2026.md §6.1). The JS tagger queries getComputedStyle()
+   so it catches every source of sticky/fixed positioning. */
+[data-screenshot-sticky="true"] {
   position: static !important;
   top: auto !important;
   bottom: auto !important;
   left: auto !important;
   right: auto !important;
   transform: none !important;
+  z-index: auto !important;
 }
 
 /* Elementor's spacer placeholder that exists only while a sibling is fixed;
@@ -167,6 +161,28 @@ async function waitForMediaReady(page: Page): Promise<void> {
     }
 
     await Promise.all(promises);
+  });
+}
+
+async function tagStickyElements(page: Page): Promise<number> {
+  // Walk the live DOM, identify every element whose computed position is
+  // 'sticky' or 'fixed', and add data-screenshot-sticky="true". The
+  // stabilization stylesheet injected into the screenshot call then reverts
+  // each to static positioning. Done via JS rather than class selectors
+  // because sites apply sticky positioning through any of: custom CSS,
+  // Tailwind/Bootstrap utility classes, JS-injected inline styles, CSS
+  // variables, etc. Only the computed-style query catches them all.
+  return page.evaluate(() => {
+    const elements = document.querySelectorAll<HTMLElement>("*");
+    let tagged = 0;
+    for (const el of Array.from(elements)) {
+      const pos = window.getComputedStyle(el).position;
+      if (pos === "sticky" || pos === "fixed") {
+        el.setAttribute("data-screenshot-sticky", "true");
+        tagged++;
+      }
+    }
+    return tagged;
   });
 }
 
@@ -297,6 +313,13 @@ export async function captureViewport(
     }
 
     // ── Phase 5: Capture screenshots (full-page + viewport thumbnail) ──────
+    // Tag all currently sticky/fixed elements so the stabilization CSS can
+    // revert them — CSS alone cannot query computed position.
+    const stickyTagged = await tagStickyElements(page);
+    if (stickyTagged > 0) {
+      console.log(`Tagged ${stickyTagged} sticky/fixed element(s) for capture`);
+    }
+
     const { screenshotPath, screenshotWidth, screenshotHeight } =
       await takeFullPageScreenshot(page, scanId, device);
 

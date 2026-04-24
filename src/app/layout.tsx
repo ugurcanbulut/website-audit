@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
-import { Urbanist } from "next/font/google";
-import { Geist_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -8,15 +7,30 @@ import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/layout/app-sidebar";
 import "./globals.css";
 
-const urbanist = Urbanist({
+// Fonts vendored under /public/fonts/ to keep builds hermetic (Google Fonts
+// fetches are unreliable inside Docker build networks).
+const urbanist = localFont({
   variable: "--font-urbanist",
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600", "700"],
+  display: "swap",
+  src: [
+    {
+      path: "../../public/fonts/urbanist-latin.woff2",
+      weight: "100 900",
+      style: "normal",
+    },
+  ],
 });
 
-const geistMono = Geist_Mono({
+const geistMono = localFont({
   variable: "--font-geist-mono",
-  subsets: ["latin"],
+  display: "swap",
+  src: [
+    {
+      path: "../../public/fonts/geist-mono-latin.woff",
+      weight: "400",
+      style: "normal",
+    },
+  ],
 });
 
 export const metadata: Metadata = {
