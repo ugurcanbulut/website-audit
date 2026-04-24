@@ -14,6 +14,7 @@ import {
 } from "@/lib/ai/models";
 import { withRetryAndTimeout } from "@/lib/ai/retry";
 import { recordAiUsage } from "@/lib/ai/usage";
+import { rateLimitOrResponse, RATE_LIMITS } from "@/lib/security/rate-limit";
 
 const REMEDIATION_SYSTEM_PROMPT = `You are an accessibility remediation expert. You will be given an HTML snippet that has a specific accessibility violation. Generate the corrected HTML that fixes the violation.
 
@@ -194,6 +195,9 @@ Generate the fixed HTML.`;
 }
 
 export async function POST(request: NextRequest) {
+  const limited = await rateLimitOrResponse(request, RATE_LIMITS.remediate);
+  if (limited) return limited;
+
   const body = await request.json();
   const parsed = requestSchema.safeParse(body);
   if (!parsed.success) {

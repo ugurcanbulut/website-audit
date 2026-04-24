@@ -5,15 +5,8 @@ import { db } from "@/lib/db";
 import { scanBatches, scans } from "@/lib/db/schema";
 import { addScanJob } from "@/lib/queue/scan-queue";
 import { getDevicesByNames, DEFAULT_DEVICES } from "@/lib/scanner/devices";
-import { startScanWorker } from "@/lib/queue/scan-worker";
-
-let workerStarted = false;
-async function ensureWorker() {
-  if (!workerStarted) {
-    await startScanWorker();
-    workerStarted = true;
-  }
-}
+import { assertScanTargetUrl, UrlGuardError } from "@/lib/security/url-guard";
+import { rateLimitOrResponse, RATE_LIMITS } from "@/lib/security/rate-limit";
 
 const createBatchSchema = z.object({
   urls: z.array(z.string().url()).min(1, "At least one URL required").max(50, "Maximum 50 URLs"),
@@ -35,7 +28,8 @@ export async function GET() {
 
 // POST /api/batches
 export async function POST(request: NextRequest) {
-  await ensureWorker();
+  const limited = await rateLimitOrResponse(request, RATE_LIMITS.batch);
+  if (limited) return limited;
 
   const body = await request.json();
   const parsed = createBatchSchema.safeParse(body);
@@ -45,6 +39,24 @@ export async function POST(request: NextRequest) {
   }
 
   const { urls, name, devices: deviceNames, browserEngine, aiEnabled, aiProvider } = parsed.data;
+
+  // Validate every URL before committing anything — one bad URL fails the batch.
+  const urlErrors: Record<string, string> = {};
+  for (const url of urls) {
+    try {
+      await assertScanTargetUrl(url);
+    } catch (e) {
+      if (e instanceof UrlGuardError) urlErrors[url] = e.message;
+      else throw e;
+    }
+  }
+  if (Object.keys(urlErrors).length > 0) {
+    return NextResponse.json(
+      { error: { urls: urlErrors } },
+      { status: 400 },
+    );
+  }
+
   const resolvedDevices = deviceNames ? getDevicesByNames(deviceNames) : getDevicesByNames(DEFAULT_DEVICES);
   const viewportConfigs = resolvedDevices.map(d => ({ name: d.name, width: d.width, height: d.height, type: d.type }));
 

@@ -1,11 +1,20 @@
+import { assertScanTargetUrl } from "@/lib/security/url-guard";
+
 export async function parseSitemapUrls(
   sitemapUrl: string,
-  maxUrls = 500
+  maxUrls = 500,
 ): Promise<string[]> {
   const urls: string[] = [];
 
   try {
-    const response = await fetch(sitemapUrl, { signal: AbortSignal.timeout(10000) });
+    // Every sitemap URL goes through the SSRF guard before we fetch it.
+    // Sitemap index files can point to other domains; we must re-check each
+    // one rather than trusting the seed URL alone.
+    await assertScanTargetUrl(sitemapUrl);
+
+    const response = await fetch(sitemapUrl, {
+      signal: AbortSignal.timeout(10000),
+    });
     if (!response.ok) return urls;
 
     const text = await response.text();
@@ -15,7 +24,10 @@ export async function parseSitemapUrls(
       const sitemapUrls = extractXmlValues(text, "loc");
       for (const subSitemapUrl of sitemapUrls.slice(0, 10)) {
         if (urls.length >= maxUrls) break;
-        const subUrls = await parseSitemapUrls(subSitemapUrl, maxUrls - urls.length);
+        const subUrls = await parseSitemapUrls(
+          subSitemapUrl,
+          maxUrls - urls.length,
+        );
         urls.push(...subUrls);
       }
     } else {
@@ -24,7 +36,7 @@ export async function parseSitemapUrls(
       urls.push(...pageUrls.slice(0, maxUrls));
     }
   } catch {
-    // Sitemap fetch/parse failure is non-fatal
+    // Sitemap fetch / guard / parse failures are all non-fatal.
   }
 
   return urls;

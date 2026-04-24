@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "target": "es2022",
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "noEmit": true,
+    "isolatedModules": false,
+    "jsx": "preserve",
+    "incremental": false
+  },
+  "include": ["src/worker/**/*.ts", "src/lib/**/*.ts"],
+  "exclude": ["node_modules", ".next"]
+}

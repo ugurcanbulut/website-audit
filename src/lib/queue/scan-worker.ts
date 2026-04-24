@@ -179,6 +179,36 @@ async function processScanJob(data: ScanJobData): Promise<void> {
   }
 }
 
+// Hard ceiling on a single scan. If captures or Lighthouse runs hang for more
+// than this, kill the job so the worker frees up for the next one.
+const SCAN_JOB_TIMEOUT_MS = Number(
+  process.env.SCAN_JOB_TIMEOUT_MS || 10 * 60 * 1000,
+);
+
+async function withTimeout<T>(
+  fn: () => Promise<T>,
+  timeoutMs: number,
+  label: string,
+): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    return await Promise.race([
+      fn(),
+      new Promise<T>((_, reject) => {
+        timer = setTimeout(
+          () =>
+            reject(
+              new Error(`${label} exceeded ${timeoutMs}ms timeout`),
+            ),
+          timeoutMs,
+        );
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 let workerInstance: import("bullmq").Worker<ScanJobData> | null = null;
 
 export async function startScanWorker(): Promise<void> {
@@ -191,12 +221,16 @@ export async function startScanWorker(): Promise<void> {
     "scan",
     async (job) => {
       console.log(`Processing scan job: ${job.id}`);
-      await processScanJob(job.data);
+      await withTimeout(
+        () => processScanJob(job.data),
+        SCAN_JOB_TIMEOUT_MS,
+        `scan job ${job.id}`,
+      );
       console.log(`Completed scan job: ${job.id}`);
     },
     {
       connection,
-      concurrency: 1,
+      concurrency: Number(process.env.SCAN_WORKER_CONCURRENCY || 1),
     }
   );
 

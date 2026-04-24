@@ -5,16 +5,8 @@ import { db } from "@/lib/db";
 import { scans } from "@/lib/db/schema";
 import { addScanJob } from "@/lib/queue/scan-queue";
 import { getDevicesByNames, DEFAULT_DEVICES } from "@/lib/scanner/devices";
-import { startScanWorker } from "@/lib/queue/scan-worker";
-
-// Ensure worker is started when API is used
-let workerStarted = false;
-async function ensureWorker() {
-  if (!workerStarted) {
-    await startScanWorker();
-    workerStarted = true;
-  }
-}
+import { assertScanTargetUrl, UrlGuardError } from "@/lib/security/url-guard";
+import { rateLimitOrResponse, RATE_LIMITS } from "@/lib/security/rate-limit";
 
 const createScanSchema = z.object({
   url: z.string().url("Please enter a valid URL"),
@@ -39,7 +31,8 @@ export async function GET() {
 
 // POST /api/scans - Create a new scan
 export async function POST(request: NextRequest) {
-  await ensureWorker();
+  const limited = await rateLimitOrResponse(request, RATE_LIMITS.scan);
+  if (limited) return limited;
 
   const body = await request.json();
   const parsed = createScanSchema.safeParse(body);
@@ -52,6 +45,18 @@ export async function POST(request: NextRequest) {
   }
 
   const { url, aiEnabled, aiProvider } = parsed.data;
+
+  try {
+    await assertScanTargetUrl(url);
+  } catch (e) {
+    if (e instanceof UrlGuardError) {
+      return NextResponse.json(
+        { error: { url: [e.message] } },
+        { status: 400 },
+      );
+    }
+    throw e;
+  }
 
   // Resolve device names: new device-based > legacy viewports > defaults
   const deviceNames = parsed.data.devices

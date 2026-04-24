@@ -17,6 +17,7 @@ services:
       timeout: 5s
       retries: 5
       start_period: 30s
+    restart: unless-stopped
 
   redis:
     image: redis:7-alpine
@@ -32,6 +33,7 @@ services:
       timeout: 5s
       retries: 5
       start_period: 10s
+    restart: unless-stopped
 
   app:
     build:
@@ -53,6 +55,39 @@ services:
       - screenshots:/app/public/screenshots
     networks:
       - uiaudit
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/ >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+
+  # Worker runs the same image as the web app but with a different command.
+  # Scales independently; restart without touching the web tier. Shares the
+  # screenshots volume so captures written here are served by the web app.
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["node", "dist/worker.cjs"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      app:
+        condition: service_started
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://uiaudit:uiaudit@postgres:5432/uiaudit
+      REDIS_URL: redis://redis:6379
+    volumes:
+      - screenshots:/app/public/screenshots
+    networks:
+      - uiaudit
+    restart: unless-stopped
 
 volumes:
   postgres_data:

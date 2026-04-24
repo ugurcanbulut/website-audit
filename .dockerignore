@@ -18,9 +18,10 @@
 public/screenshots/*
 !public/screenshots/.gitkeep
 
-# TS build cache
+# TS build cache + esbuild output (built inside the image)
 tsconfig.tsbuildinfo
 *.tsbuildinfo
+dist
 
 # Editor
 .vscode

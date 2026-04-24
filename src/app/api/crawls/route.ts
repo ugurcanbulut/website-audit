@@ -4,16 +4,9 @@ import { z } from "zod";
 import { db } from "@/lib/db";
 import { crawls } from "@/lib/db/schema";
 import { addCrawlJob } from "@/lib/queue/crawl-queue";
-import { startCrawlWorker } from "@/lib/queue/crawl-worker";
 import { DEFAULT_CRAWL_CONFIG } from "@/lib/crawler/types";
-
-let workerStarted = false;
-async function ensureWorker() {
-  if (!workerStarted) {
-    await startCrawlWorker();
-    workerStarted = true;
-  }
-}
+import { assertScanTargetUrl, UrlGuardError } from "@/lib/security/url-guard";
+import { rateLimitOrResponse, RATE_LIMITS } from "@/lib/security/rate-limit";
 
 const createCrawlSchema = z.object({
   url: z.string().url("Please enter a valid URL"),
@@ -35,7 +28,9 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  await ensureWorker();
+  const limited = await rateLimitOrResponse(request, RATE_LIMITS.crawl);
+  if (limited) return limited;
+
   const body = await request.json();
   const parsed = createCrawlSchema.safeParse(body);
 
@@ -47,6 +42,18 @@ export async function POST(request: NextRequest) {
   }
 
   const { url, ...configFields } = parsed.data;
+
+  try {
+    await assertScanTargetUrl(url);
+  } catch (e) {
+    if (e instanceof UrlGuardError) {
+      return NextResponse.json(
+        { error: { url: [e.message] } },
+        { status: 400 },
+      );
+    }
+    throw e;
+  }
 
   const [crawl] = await db
     .insert(crawls)
