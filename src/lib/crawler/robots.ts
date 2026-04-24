@@ -32,9 +32,14 @@ export function parseRobotsTxt(content: string, userAgent = "*"): RobotsRules {
       rules.sitemaps.push(value);
     } else if (isRelevantAgent) {
       if (directive === "allow") {
-        rules.allowedPaths.push(value);
+        // Empty Allow is a no-op per RFC 9309.
+        if (value !== "") rules.allowedPaths.push(value);
       } else if (directive === "disallow") {
-        rules.disallowedPaths.push(value);
+        // Per RFC 9309 §2.2.2, `Disallow:` with an empty value means
+        // "nothing is disallowed" — skip rather than push "", which would
+        // otherwise match every path via startsWith("") and silently block
+        // all crawling. americas.land's robots.txt exhibits this pattern.
+        if (value !== "") rules.disallowedPaths.push(value);
       } else if (directive === "crawl-delay") {
         rules.crawlDelay = parseInt(value, 10) * 1000;
       }
@@ -45,17 +50,21 @@ export function parseRobotsTxt(content: string, userAgent = "*"): RobotsRules {
 }
 
 export function isPathAllowed(path: string, rules: RobotsRules): boolean {
-  // Check allow first (more specific wins)
-  for (const allowed of rules.allowedPaths) {
-    if (path.startsWith(allowed)) return true;
-  }
-  for (const disallowed of rules.disallowedPaths) {
-    if (disallowed === "" || disallowed === "/") {
-      // Disallow all, but check if specifically allowed
-      const hasSpecificAllow = rules.allowedPaths.some(a => path.startsWith(a) && a !== "");
-      if (!hasSpecificAllow) return false;
+  // RFC 9309 §2.2.2: the most specific match wins, with specificity measured
+  // by the length of the matching pattern. On ties, Allow wins.
+  let longestDisallow = -1;
+  for (const d of rules.disallowedPaths) {
+    if (path.startsWith(d) && d.length > longestDisallow) {
+      longestDisallow = d.length;
     }
-    if (path.startsWith(disallowed)) return false;
   }
-  return true;
+  if (longestDisallow < 0) return true;
+
+  let longestAllow = -1;
+  for (const a of rules.allowedPaths) {
+    if (path.startsWith(a) && a.length > longestAllow) {
+      longestAllow = a.length;
+    }
+  }
+  return longestAllow >= longestDisallow;
 }
