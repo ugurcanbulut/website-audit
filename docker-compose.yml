@@ -56,7 +56,12 @@ services:
     networks:
       - uiaudit
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://localhost:3000/ >/dev/null 2>&1 || exit 1"]
+      # node:22-slim ships neither wget nor curl, so probe via node's http
+      # module. Treat any 2xx/3xx/4xx as "the server is up" — we care about
+      # process liveness here, not application-level success.
+      test:
+        - "CMD-SHELL"
+        - "node -e \"require('http').get('http://localhost:3000/', r => process.exit(r.statusCode < 500 ? 0 : 1)).on('error', () => process.exit(1))\""
       interval: 30s
       timeout: 10s
       retries: 3
