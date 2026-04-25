@@ -10,6 +10,10 @@
 
 ## 1. Current state — where we left off
 
+### Two parallel pauses
+1. **Sprint 6 quick-wins (code work)** — paused for travel; resume point in this section.
+2. **Product strategy brainstorm** — paused mid-session; full state in [`docs/PRODUCT_VISION.md`](docs/PRODUCT_VISION.md). Resume from scale ceiling decision (#4).
+
 ### Last shipped commits (origin/main)
 - `158951d` fix: docker healthcheck — node http probe (wget/curl missing in node:22-slim)
 - `c59c79f` fix: crawler — empty `Disallow:` is allow-all per RFC 9309 §2.2.2
