@@ -9,6 +9,8 @@ export async function GET(
   const { id: scanId } = await params;
 
   const encoder = new TextEncoder();
+  let unsubscribe: (() => void) | undefined;
+  let heartbeat: ReturnType<typeof setInterval> | undefined;
   const stream = new ReadableStream({
     start(controller) {
       // Send initial connection event
@@ -16,7 +18,19 @@ export async function GET(
         encoder.encode(`data: ${JSON.stringify({ type: "connected", data: { scanId, message: "Connected" } })}\n\n`)
       );
 
-      const unsubscribe = subscribeScanEvents(scanId, (event) => {
+      // Heartbeat: the audit phase can run for tens of seconds without emitting
+      // any event. A periodic SSE comment keeps the connection warm so a proxy
+      // or browser idle timeout doesn't trip onerror and flash "Connection
+      // lost" mid-scan. Comment lines (": ...") are ignored by EventSource.
+      heartbeat = setInterval(() => {
+        try {
+          controller.enqueue(encoder.encode(`: ping\n\n`));
+        } catch {
+          // Stream already closed
+        }
+      }, 15000);
+
+      unsubscribe = subscribeScanEvents(scanId, (event) => {
         try {
           controller.enqueue(
             encoder.encode(`data: ${JSON.stringify(event)}\n\n`)
@@ -26,6 +40,7 @@ export async function GET(
           if (event.type === "completed" || event.type === "error") {
             setTimeout(() => {
               try {
+                if (heartbeat) clearInterval(heartbeat);
                 controller.close();
               } catch {
                 // Stream may already be closed
@@ -34,12 +49,16 @@ export async function GET(
           }
         } catch {
           // Client disconnected
-          unsubscribe();
+          if (heartbeat) clearInterval(heartbeat);
+          unsubscribe?.();
         }
       });
-
-      // Clean up when client disconnects (handled via AbortSignal in practice)
-      // The stream will be garbage collected when the client disconnects
+    },
+    cancel() {
+      // Client disconnected (tab close / navigation). Stop the heartbeat and
+      // release the Redis subscription so it doesn't leak.
+      if (heartbeat) clearInterval(heartbeat);
+      unsubscribe?.();
     },
   });
 
@@ -48,6 +67,7 @@ export async function GET(
       "Content-Type": "text/event-stream",
       "Cache-Control": "no-cache",
       Connection: "keep-alive",
+      "X-Accel-Buffering": "no",
     },
   });
 }

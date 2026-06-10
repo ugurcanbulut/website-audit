@@ -2,7 +2,7 @@
 
 > Persistent context for Claude Code, synced via git so any machine (laptop, desktop) gets the same picture. Loaded automatically through `CLAUDE.md`.
 
-**Last updated:** 2026-04-25
+**Last updated:** 2026-06-10
 **Repo:** github.com/ugurcanbulut/website-audit
 **Branch:** main
 
@@ -10,11 +10,34 @@
 
 ## 1. Current state — where we left off
 
-### Two parallel pauses
-1. **Sprint 6 quick-wins (code work)** — paused for travel; resume point in this section.
-2. **Product strategy brainstorm** — paused mid-session; full state in [`docs/PRODUCT_VISION.md`](docs/PRODUCT_VISION.md). Resume from scale ceiling decision (#4).
+### 🔑 PRODUCT PIVOT (2026-06-09 brainstorm) — INTERNAL AGENCY TOOL, not a SaaS
+- Confirmed by user: the tool runs **inside the agency the user works at**, to audit **client websites at delivery / QA time** — catch issues before the client does + produce a report. NOT a commercial SaaS, no revenue model.
+- PARKED (parked, not trashed): all SaaS thinking in [`docs/PRODUCT_VISION.md`](docs/PRODUCT_VISION.md) — pricing tiers, scale-ceiling A/B/C/D, public demo funnel, OSS-vs-closed, SaaS positioning. **That doc still shows the old SaaS framing and needs a rewrite to the internal-tool thesis (parked task).**
+- New compass: **"make our team's audit-at-delivery faster + nothing slips."** Report serves TWO audiences: internal (raw/full — every element + fix) AND client-facing (clean + branded → white-label PDF matters).
+- Pain it replaces (user's words): axe/a11y was **never** run; Lighthouse + Screaming Frog run **manually**; UI checked **by eyeball, page-by-page, sometimes BrowserStack across devices** → things slipped. ⇒ #1 leverage = multi-viewport/cross-device visual capture + objective UI-defect surface; a11y (axe/WCAG) is a 0→1 gap + compliance story.
+- Re-prioritized roadmap: **Tier1** report quality + two-mode/white-label PDF + whole-site crawl + per-client workspace · **Tier1.5** ignore/suppress (also the internal→client filter) · **Tier2** before/after baseline · **Tier3** pino logging, Slack/email, Jira export. **Dropped (SaaS-only):** monetization, demo funnel, SSO, public API, budget caps, money-back, Prometheus/OTel, scheduled scans.
+
+### ✅ Demo to management (2026-06-09/10) — DONE, went well
+- Live end-to-end demo (URL → scan → report) to decision-makers, on a **fresh-clone machine** (had no node_modules / .env / Playwright browsers).
+- Live scan on `americas.land` verified end-to-end (~60s, 1341 findings, 46/F) — **Playwright + Lighthouse confirmed working on the host (Arch)**.
+- Ran as a **production build** for the demo (`npm run build && npm run start` on :3000; the `output: standalone` warning is non-fatal — `next start` renders fine).
+
+### 🚢 Shipped this session — 3 demo fixes (committed)
+1. **Radar chart** (`report-overview.tsx`) — `hsl(var(--x))` → `var(--x)`; tokens are `oklch()`, so `hsl(oklch())` was invalid CSS → chart was invisible. Now renders (Issues tab).
+2. **`[object Object]` error** (`scan-form.tsx`) — 400s return an error OBJECT (Zod fieldErrors / UrlGuard); now flattened to a real message.
+3. **SSE heartbeat + cancel** (`api/scans/[id]/events/route.ts`) — 15s `: ping` keeps the stream warm through the audit stall (kills "Connection lost"); `cancel()` releases the redis subscription (leak fix); `X-Accel-Buffering: no`.
+
+### Demo punch-list — NOT applied (deferred; all low-risk; from the assessment workflow)
+- **#6 progress-creep** (HIGH for live demos): bar visibly pauses 35→65% during Lighthouse (looks hung). Client-only creep in `use-scan-progress.ts` (+ optional label `scan-worker.ts:136`).
+- **#9** 4th Lighthouse gauge missing (Accessibility never captured — 3/4 dials): widen type `scan/[id]/page.tsx:218`, read `cats.accessibility`.
+- **#7** stale "GPT-4o" label → code runs gpt-5 (`scan-form.tsx:261`, `batch-scan-form.tsx:218`, `settings/page.tsx`).
+- **#8** activity-log polish (`scan-progress.tsx`): friendly empty state + newest-first.
+- **#5** dark-mode score badge light-only (`ui-constants.ts:59-65`) — or just keep light mode.
+- **Not a bug:** Summary "Accessibility 0 / UX Quality 0" are **real rule-based scores** crushed by 707 axe contrast items (mostly axe "[Needs Review]" incompletes) + touch-target issues. Whether "needs-review" should floor a category = post-demo scoring-methodology question.
 
 ### Last shipped commits (origin/main)
+- *(this session, 2026-06-10)* fix: demo polish — radar `oklch`→`var`, scan-form `[object Object]`, SSE heartbeat+cancel
+- `81f4a13` docs: capture product vision brainstorm session 1
 - `158951d` fix: docker healthcheck — node http probe (wget/curl missing in node:22-slim)
 - `c59c79f` fix: crawler — empty `Disallow:` is allow-all per RFC 9309 §2.2.2
 - `5986508` fix: report IA — Summary tab, Compliance context, viewport SVG, design pass
@@ -26,32 +49,18 @@
 - `106dfdf` feat: **Pack C** — AI layer rewrite (structured output, retries, cost tracking)
 - `5105489` feat: **Pack A** — CDP native full-page capture screenshot engine
 
-### Sprint 6 quick wins — IN PROGRESS (paused for travel)
-User approved 3 quick wins out of full Sprint 6 (observability):
-1. **pino + request ID** — base logger module, `middleware.ts` → `proxy.ts` rename (Next.js 16 convention), `x-request-id` header injection, replace `console.*` in worker/queue/audit/scanner/ai/crawler.
-2. **Sentry** — `src/instrumentation.ts` with `register()` + `onRequestError()`, `@sentry/node` init in worker with `Sentry.withScope()` for scanId/workspaceId tags. Graceful no-op when `SENTRY_DSN` unset.
-3. **bull-board** — mini Express on port 3002 inside worker container, mount adapters for scan/crawl/retention queues, protect with `API_TOKEN` bearer (timing-safe). Add port mapping to docker-compose.yml.
-
-**Status:** Dependencies installed, no code written yet. Ready to resume from "create logger module" step.
-
-```
-npm install (already done):
-  pino  pino-pretty  @bull-board/api  @bull-board/express
-  express  @sentry/nextjs  @sentry/node
-```
-
-### Resume point
-First concrete step on resume:
-1. Create `src/lib/observability/logger.ts` (base pino + scope helper).
-2. Replace `console.*` in: `src/worker/index.ts`, `src/lib/queue/scan-worker.ts`, `src/lib/queue/crawl-worker.ts`, `src/lib/queue/retention-worker.ts`, `src/lib/audit/engine.ts`, `src/lib/scanner/capture.ts`, `src/lib/ai/*`, `src/lib/crawler/crawler.ts`.
-3. Rename `src/middleware.ts` → `src/proxy.ts`, function `middleware()` → `proxy()`, add `x-request-id` (crypto.randomUUID).
-4. Then Sentry, then bull-board.
+### Sprint 6 quick-wins (observability) — STILL NOT STARTED (deferred again; demo took priority)
+Deps installed (`2eb7661`: pino, pino-pretty, @sentry/nextjs, @sentry/node, @bull-board/api+express, express). Resume order:
+1. `src/lib/observability/logger.ts` (base pino + scope helper) → replace `console.*` in worker/queue/audit/scanner/ai/crawler.
+2. Rename `src/middleware.ts` → `src/proxy.ts` (`middleware()`→`proxy()`, add `x-request-id` via crypto.randomUUID).
+3. Sentry: `src/instrumentation.ts` (`register()` + `onRequestError()`), `@sentry/node` in worker with `Sentry.withScope()` for scanId/workspaceId; no-op when `SENTRY_DSN` unset.
+4. bull-board: mini Express on :3002 in worker, scan/crawl/retention adapters, `API_TOKEN` bearer (timing-safe); add port to docker-compose.yml.
 
 ---
 
 ## 2. Project goal & deploy
 
-**Goal:** Enterprise-grade All-in-One web audit tool (UI / UX / SEO / Security / Accessibility) — comparable in quality to axe DevTools, Lighthouse, Screaming Frog, Siteimprove, Percy.
+**Goal:** **Internal agency tool** — audit client websites at delivery/QA (UI / UX / SEO / Security / Accessibility) so the team catches issues before the client does, and produce both an internal (raw) and a client-facing (branded) report. Enterprise-grade quality bar still applies (client-facing ⇒ no generic output, comparable to axe DevTools / Lighthouse / Screaming Frog / Siteimprove / Percy). **NOT a commercial SaaS** — see §1 pivot; old SaaS framing lives, parked, in `docs/PRODUCT_VISION.md` (pending rewrite).
 
 **Deploy:** Docker Compose — `app:3001`, `postgres:5433`, `redis:6381`. Worker is a separate container since Sprint 4.
 
@@ -183,19 +192,31 @@ First concrete step on resume:
 - **Playwright browsers path:** `PLAYWRIGHT_BROWSERS_PATH=/ms-playwright` in container env.
 - **Lighthouse port:** fixed `9222` currently (random port + concurrency > 1 still on backlog).
 - **`.env` is gitignored** — secrets do not travel with the repo. After cloning on laptop, recreate `.env` from a secure source.
+- **`db:migrate` is BROKEN on fresh clones:** `.gitignore` ignores `drizzle/meta`, so `drizzle/meta/_journal.json` is never committed → `npm run db:migrate` fails with "Can't find meta/_journal.json". **Workaround (used for the demo):** `npm run db:push` (pushes schema straight to the DB, no journal needed). Real fix (parked): un-ignore `drizzle/meta` and commit the journal.
+- **Standalone node scripts don't auto-load `.env`:** `db:push`/`db:migrate` and the worker (`node dist/worker.cjs`) need env exported first — `set -a; . ./.env; set +a`. Only `next dev`/`next start` auto-load `.env`.
 
 ---
 
-## 10. New machine bootstrap (laptop)
+## 10. New machine bootstrap (verified 2026-06-09 on a fresh Arch clone)
+
+**Fastest reliable local-dev run — HYBRID (db/redis in docker, app+worker on host):**
 
 ```bash
-git clone <repo>
-cd ui-audit
-npm install                       # installs Sprint 6 deps already in package.json
-cp .env.example .env              # then fill in secrets
+git clone <repo> && cd website-audit
+npm install
+npx playwright install chromium      # browsers → ~/.cache/ms-playwright (host run)
+cp .env.example .env                 # then EDIT for local→docker HOST ports:
+#   DATABASE_URL=postgresql://uiaudit:uiaudit@localhost:5433/uiaudit
+#   REDIS_URL=redis://localhost:6381
+#   (optional) ANTHROPIC_API_KEY=...    # rule-based works WITHOUT it
 chmod 600 .env
-npx playwright install chromium   # if running outside Docker
-docker-compose up -d              # full stack
+docker-compose up -d postgres redis  # just the stores (fast prebuilt images)
+set -a; . ./.env; set +a             # standalone scripts don't auto-load .env (§9)
+npm run db:push                      # NOT db:migrate — see §9 drizzle/meta bug
+npm run worker                       # esbuild bundle + node worker (needs env sourced)
+npm run dev                          # app on :3000   (prod: npm run build && npm run start)
 ```
 
-After clone, this `MEMORY.md` is loaded automatically via `CLAUDE.md` — Claude picks up where we left off.
+Full Docker (`docker-compose up -d`) also works but the app/worker image build (Next build + Playwright) is slow — skip it when iterating. **Worker on host launches Playwright/Lighthouse fine on Arch** (verified).
+
+After clone, this `MEMORY.md` loads via `CLAUDE.md` — Claude picks up where we left off.

@@ -113,9 +113,14 @@ export function ScanForm() {
 
       if (!res.ok) {
         const body = await res.json().catch(() => null);
-        throw new Error(
-          body?.error ?? `Server responded with ${res.status}`,
-        );
+        const msg =
+          typeof body?.error === "string"
+            ? body.error
+            : Object.values(body?.error ?? {})
+                .flat()
+                .filter(Boolean)
+                .join(", ") || `Server responded with ${res.status}`;
+        throw new Error(msg);
       }
 
       const { id } = (await res.json()) as { id: string };

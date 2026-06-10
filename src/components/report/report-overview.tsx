@@ -108,22 +108,22 @@ export function ReportOverview({
               <div className="h-[320px] w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <RadarChart data={radarData} cx="50%" cy="50%" outerRadius="70%">
-                    <PolarGrid stroke="hsl(var(--border))" />
+                    <PolarGrid stroke="var(--border)" />
                     <PolarAngleAxis
                       dataKey="category"
-                      tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))" }}
+                      tick={{ fontSize: 11, fill: "var(--muted-foreground)" }}
                     />
                     <PolarRadiusAxis
                       angle={90}
                       domain={[0, 100]}
-                      tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+                      tick={{ fontSize: 10, fill: "var(--muted-foreground)" }}
                       tickCount={5}
                     />
                     <Radar
                       name="Score"
                       dataKey="score"
-                      stroke="hsl(var(--primary))"
-                      fill="hsl(var(--primary))"
+                      stroke="var(--primary)"
+                      fill="var(--primary)"
                       fillOpacity={0.2}
                       strokeWidth={2}
                     />
