@@ -10,6 +10,20 @@ interface ReportTabsProps {
   lighthouseContent?: ReactNode;
   screenshotsContent: ReactNode;
   viewportContent: ReactNode;
+  issuesCount?: number;
+}
+
+// Direction D underline tabs: transparent strip over a hairline border,
+// active item gets bold ink + 2px primary underline.
+const triggerClass =
+  "h-[42px] flex-none gap-1.5 rounded-none px-3.5 text-sm font-semibold text-muted-foreground -mb-px hover:text-foreground data-active:font-bold data-active:text-foreground after:bg-primary group-data-horizontal/tabs:after:inset-x-0 group-data-horizontal/tabs:after:bottom-0 group-data-horizontal/tabs:after:h-[2px]";
+
+function CountChip({ count }: { count: number }) {
+  return (
+    <span className="rounded-[5px] bg-secondary px-1.5 py-px text-[11px] font-bold tabular-nums text-muted-foreground">
+      {count}
+    </span>
+  );
 }
 
 export function ReportTabs({
@@ -19,16 +33,35 @@ export function ReportTabs({
   lighthouseContent,
   screenshotsContent,
   viewportContent,
+  issuesCount,
 }: ReportTabsProps) {
   return (
     <Tabs defaultValue="summary">
-      <TabsList variant="line">
-        <TabsTrigger value="summary">Summary</TabsTrigger>
-        <TabsTrigger value="issues">Issues</TabsTrigger>
-        <TabsTrigger value="compliance">Compliance</TabsTrigger>
-        {lighthouseContent && <TabsTrigger value="lighthouse">Lighthouse</TabsTrigger>}
-        <TabsTrigger value="viewports">By Viewport</TabsTrigger>
-        <TabsTrigger value="screenshots">Screenshots</TabsTrigger>
+      <TabsList
+        variant="line"
+        className="w-full justify-start gap-1 rounded-none border-b border-border p-0 group-data-horizontal/tabs:h-auto"
+      >
+        <TabsTrigger value="summary" className={triggerClass}>
+          Summary
+        </TabsTrigger>
+        <TabsTrigger value="issues" className={triggerClass}>
+          Issues
+          {issuesCount != null && issuesCount > 0 && <CountChip count={issuesCount} />}
+        </TabsTrigger>
+        <TabsTrigger value="compliance" className={triggerClass}>
+          Compliance
+        </TabsTrigger>
+        {lighthouseContent && (
+          <TabsTrigger value="lighthouse" className={triggerClass}>
+            Lighthouse
+          </TabsTrigger>
+        )}
+        <TabsTrigger value="viewports" className={triggerClass}>
+          By Viewport
+        </TabsTrigger>
+        <TabsTrigger value="screenshots" className={triggerClass}>
+          Screenshots
+        </TabsTrigger>
       </TabsList>
 
       <TabsContent value="summary">

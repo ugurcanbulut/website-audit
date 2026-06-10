@@ -1,15 +1,23 @@
+import { Globe } from "lucide-react";
 import { SiteHeader } from "@/components/layout/site-header";
+import { PageHead } from "@/components/layout/page-head";
 import { CrawlForm } from "@/components/crawl/crawl-form";
 
 export default function NewCrawlPage() {
   return (
     <>
-      <SiteHeader title="New SEO Crawl" />
-      <div className="flex flex-1 flex-col gap-4 p-4 lg:p-6">
-        <div className="max-w-2xl">
-          <p className="text-muted-foreground mb-6">
-            Crawl an entire website for comprehensive SEO analysis.
-          </p>
+      <SiteHeader breadcrumbs={[
+        { label: "Dashboard", href: "/" },
+        { label: "SEO Crawl", href: "/crawl/history" },
+        { label: "New Crawl" },
+      ]} />
+      <div className="flex flex-1 flex-col gap-5 p-4 lg:p-6">
+        <div className="mx-auto flex w-full max-w-[760px] flex-col gap-5">
+          <PageHead
+            icon={Globe}
+            title="New Crawl"
+            subtitle="Discover and audit every reachable page from a seed URL."
+          />
           <CrawlForm />
         </div>
       </div>

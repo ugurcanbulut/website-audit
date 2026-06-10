@@ -14,12 +14,15 @@ import {
   Globe,
   Plus,
 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { EmptyState } from "@/components/ui/empty-state";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import { SCAN_STATUS_CONFIG } from "@/lib/ui-constants";
+import { formatRelativeTime } from "@/lib/relative-time";
 
 interface Crawl {
   id: string;
@@ -30,14 +33,15 @@ interface Crawl {
   createdAt: Date;
 }
 
-const statusConfig: Record<
-  string,
-  { label: string; variant: "default" | "secondary" | "destructive" | "outline" }
-> = {
+const GRID = "grid-cols-[minmax(0,1fr)_130px_120px_110px_40px]";
+
+const statusConfig: Record<string, { label: string }> = {
   ...SCAN_STATUS_CONFIG,
-  running: { label: "Running", variant: "secondary" },
-  crawling: { label: "Crawling", variant: "secondary" },
+  running: { label: "Running" },
+  crawling: { label: "Crawling" },
 };
+
+const RUNNING_STATUSES = ["running", "crawling", "scanning", "auditing", "analyzing"];
 
 function StatusIcon({ status }: { status: string }) {
   switch (status) {
@@ -58,13 +62,27 @@ function StatusIcon({ status }: { status: string }) {
   }
 }
 
-function formatDate(date: Date): string {
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(new Date(date));
+function StatusPill({ status }: { status: string }) {
+  const config = statusConfig[status] ?? statusConfig.pending;
+  const tone =
+    status === "completed"
+      ? "bg-emerald-50 text-emerald-700"
+      : RUNNING_STATUSES.includes(status)
+        ? "bg-[var(--brand-soft)] text-primary"
+        : status === "failed"
+          ? "bg-red-50 text-red-600"
+          : "bg-secondary text-muted-foreground";
+  return (
+    <span
+      className={cn(
+        "inline-flex w-fit items-center gap-1.5 rounded-lg py-[3px] pl-2 pr-2.5 text-xs font-bold",
+        tone
+      )}
+    >
+      <StatusIcon status={status} />
+      {config.label}
+    </span>
+  );
 }
 
 function getHostname(url: string): string {
@@ -134,95 +152,95 @@ export function CrawlHistoryList({ crawls }: { crawls: Crawl[] }) {
 
   if (crawls.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 text-center">
-        <div className="rounded-full bg-muted p-4 mb-4">
-          <Globe className="size-8 text-muted-foreground" />
-        </div>
-        <p className="text-muted-foreground text-base mb-4">No crawls yet</p>
-        <Button render={<Link href="/crawl/new" />}>
-          <Plus className="size-4 mr-2" />
-          Start a New Crawl
-        </Button>
-      </div>
+      <Card className="rounded-2xl py-0 shadow-none">
+        <EmptyState
+          icon={Globe}
+          title="No crawls yet"
+          description="Crawl a site to map every reachable page."
+          action={
+            <Button render={<Link href="/crawl/new" />}>
+              <Plus className="size-4" />
+              Start a New Crawl
+            </Button>
+          }
+        />
+      </Card>
     );
   }
 
   return (
-    <>
-      <div className="relative mb-4">
-        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-        <Input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Filter by URL..."
-          className="pl-8"
-        />
+    <Card className="gap-0 overflow-hidden rounded-2xl py-0 shadow-none">
+      <div className="flex items-center gap-3 border-b px-4 py-3.5">
+        <div className="relative w-full max-w-[360px]">
+          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Filter by site…"
+            className="h-10 rounded-[11px] pl-9"
+          />
+        </div>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b text-muted-foreground">
-              <th className="pb-2 pr-4 text-left font-medium">Seed URL</th>
-              <th className="pb-2 pr-4 text-left font-medium">Status</th>
-              <th className="pb-2 pr-4 text-left font-medium hidden sm:table-cell">
-                Pages Crawled
-              </th>
-              <th className="pb-2 pr-4 text-left font-medium hidden sm:table-cell">Date</th>
-              <th className="pb-2 text-right font-medium" />
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((crawl) => {
-              const config =
-                statusConfig[crawl.status] ?? statusConfig.pending;
-              return (
-                <tr
-                  key={crawl.id}
-                  className="group border-b last:border-0 cursor-pointer hover:bg-muted/50"
-                  onClick={() => router.push(`/crawl/${crawl.id}`)}
-                >
-                  <td className="py-3 pr-4">
-                    <span className="font-medium">
-                      {getHostname(crawl.seedUrl)}
-                    </span>
-                    <p className="text-xs text-muted-foreground truncate max-w-[200px] sm:max-w-xs">
-                      {crawl.seedUrl}
-                    </p>
-                  </td>
-                  <td className="py-3 pr-4">
-                    <Badge variant={config.variant} className="gap-1">
-                      <StatusIcon status={crawl.status} />
-                      {config.label}
-                    </Badge>
-                  </td>
-                  <td className="py-3 pr-4 tabular-nums hidden sm:table-cell">
-                    {crawl.pagesCrawled ?? 0}
-                    {crawl.totalPages
-                      ? ` / ${crawl.totalPages}`
-                      : ""}
-                  </td>
-                  <td className="py-3 pr-4 whitespace-nowrap text-muted-foreground hidden sm:table-cell">
-                    {formatDate(crawl.createdAt)}
-                  </td>
-                  <td className="py-3 text-right">
-                    <DeleteButton crawlId={crawl.id} />
-                  </td>
-                </tr>
-              );
-            })}
-            {filtered.length === 0 && (
-              <tr>
-                <td
-                  colSpan={5}
-                  className="py-8 text-center text-muted-foreground"
-                >
-                  No crawls matching &ldquo;{search}&rdquo;
-                </td>
-              </tr>
+        <div className="min-w-[680px]">
+          <div
+            className={cn(
+              "grid gap-3.5 border-b px-4 py-2.5 text-[10.5px] font-bold uppercase tracking-[.05em] text-[var(--faint)]",
+              GRID
             )}
-          </tbody>
-        </table>
+          >
+            <span>Site</span>
+            <span>Status</span>
+            <span>Pages</span>
+            <span>Date</span>
+            <span />
+          </div>
+          {filtered.map((crawl, i) => (
+            <div
+              key={crawl.id}
+              className={cn(
+                "group grid cursor-pointer items-center gap-3.5 px-4 py-3 transition-colors hover:bg-muted/50",
+                GRID,
+                i < filtered.length - 1 && "border-b"
+              )}
+              onClick={() => router.push(`/crawl/${crawl.id}`)}
+            >
+              <div className="flex min-w-0 items-center gap-3">
+                <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-secondary">
+                  <Globe className="size-4 text-muted-foreground" />
+                </div>
+                <div className="min-w-0">
+                  <div className="truncate text-[13.5px] font-bold text-foreground">
+                    {getHostname(crawl.seedUrl)}
+                  </div>
+                  <div className="truncate font-mono text-[11.5px] text-[var(--faint)]">
+                    {crawl.seedUrl}
+                  </div>
+                </div>
+              </div>
+              <StatusPill status={crawl.status} />
+              <span className="text-base font-extrabold tabular-nums text-foreground">
+                {crawl.pagesCrawled ?? 0}
+                {crawl.totalPages ? (
+                  <span className="font-semibold text-[var(--faint)]">
+                    {" "}
+                    / {crawl.totalPages}
+                  </span>
+                ) : null}
+              </span>
+              <span className="whitespace-nowrap text-[12.5px] text-muted-foreground">
+                {formatRelativeTime(crawl.createdAt)}
+              </span>
+              <div className="justify-self-end">
+                <DeleteButton crawlId={crawl.id} />
+              </div>
+            </div>
+          ))}
+          {filtered.length === 0 && (
+            <EmptyState icon={Search} title={`No crawls matching "${search}"`} />
+          )}
+        </div>
       </div>
-    </>
+    </Card>
   );
 }

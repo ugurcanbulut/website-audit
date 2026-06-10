@@ -1,10 +1,8 @@
 import type { Metadata } from "next";
 import localFont from "next/font/local";
-import { ThemeProvider } from "next-themes";
 import { Toaster } from "sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
-import { AppSidebar } from "@/components/layout/app-sidebar";
+import { TopNav } from "@/components/layout/top-nav";
 import "./globals.css";
 
 // Fonts vendored under /public/fonts/ to keep builds hermetic (Google Fonts
@@ -34,7 +32,7 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "UI Audit - Advanced UI/UX Auditing Tool",
+  title: "REALSTACK Audit — UI/UX Auditing Tool",
   description:
     "Scan websites across multiple viewports and get comprehensive UI/UX audit reports powered by AI.",
 };
@@ -51,29 +49,13 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="min-h-full bg-background text-foreground">
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="system"
-          enableSystem
-          disableTransitionOnChange
-        >
-          <TooltipProvider>
-            <SidebarProvider
-              style={
-                {
-                  "--sidebar-width": "calc(var(--spacing) * 72)",
-                  "--header-height": "calc(var(--spacing) * 12)",
-                } as React.CSSProperties
-              }
-            >
-              <AppSidebar />
-              <SidebarInset>
-                {children}
-              </SidebarInset>
-            </SidebarProvider>
-            <Toaster richColors position="bottom-right" />
-          </TooltipProvider>
-        </ThemeProvider>
+        <TooltipProvider>
+          <TopNav />
+          <main className="mx-auto w-full max-w-[1320px] pb-16">
+            {children}
+          </main>
+          <Toaster richColors position="bottom-right" />
+        </TooltipProvider>
       </body>
     </html>
   );

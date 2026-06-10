@@ -1,6 +1,48 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Settings, Sparkles } from "lucide-react";
+import { Card } from "@/components/ui/card";
 import { SiteHeader } from "@/components/layout/site-header";
+import { PageHead } from "@/components/layout/page-head";
+import { cn } from "@/lib/utils";
+
+function ProviderRow({
+  name,
+  description,
+  configured,
+}: {
+  name: string;
+  description: string;
+  configured: boolean;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4 rounded-xl border px-4 py-3.5">
+      <div className="flex items-center gap-3">
+        <div className="flex size-9 shrink-0 items-center justify-center rounded-[10px] bg-[var(--surface-2)]">
+          <Sparkles className="size-[18px] text-muted-foreground" strokeWidth={1.9} />
+        </div>
+        <div>
+          <div className="text-sm font-bold text-foreground">{name}</div>
+          <div className="text-[12.5px] text-muted-foreground">{description}</div>
+        </div>
+      </div>
+      <span
+        className={cn(
+          "inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-bold",
+          configured
+            ? "bg-emerald-50 text-emerald-700"
+            : "bg-[var(--surface-2)] text-muted-foreground"
+        )}
+      >
+        <span
+          className={cn(
+            "size-[7px] rounded-full",
+            configured ? "bg-emerald-500" : "bg-[var(--faint)]"
+          )}
+        />
+        {configured ? "Configured" : "Not configured"}
+      </span>
+    </div>
+  );
+}
 
 export default function SettingsPage() {
   const anthropicConfigured = !!process.env.ANTHROPIC_API_KEY;
@@ -8,55 +50,54 @@ export default function SettingsPage() {
 
   return (
     <>
-      <SiteHeader title="Settings" />
-      <div className="flex flex-1 flex-col gap-4 p-4 lg:p-6">
-        <div className="max-w-2xl">
-          <Card>
-            <CardHeader>
-              <CardTitle>AI Providers</CardTitle>
-              <CardDescription>
-                Configure API keys for AI-powered audit analysis. Set these in your <code className="text-base bg-muted px-1 py-0.5 rounded">.env</code> file.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="flex items-center justify-between p-3 rounded-lg border">
-                <div>
-                  <p className="font-medium">Anthropic (Claude)</p>
-                  <p className="text-base text-muted-foreground">
-                    Uses Claude's vision API for visual analysis
-                  </p>
-                </div>
-                <Badge variant={anthropicConfigured ? "default" : "secondary"}>
-                  {anthropicConfigured ? "Configured" : "Not configured"}
-                </Badge>
+      <SiteHeader breadcrumbs={[
+        { label: "Dashboard", href: "/" },
+        { label: "Settings" },
+      ]} />
+      <div className="flex flex-1 flex-col gap-5 p-4 lg:p-6">
+        <div className="mx-auto flex w-full max-w-[720px] flex-col gap-5">
+          <PageHead
+            icon={Settings}
+            title="Settings"
+            subtitle="Configure providers for AI-powered audit analysis."
+          />
+          <Card className="gap-0 rounded-2xl py-0 shadow-none">
+            <div className="p-5 sm:p-6">
+              <h2 className="text-base">AI Providers</h2>
+              <p className="mb-4.5 mt-1.5 text-[13px] leading-normal text-muted-foreground">
+                Set API keys in your{" "}
+                <code className="rounded bg-[var(--surface-2)] px-1.5 py-0.5 font-mono text-xs">
+                  .env
+                </code>{" "}
+                file. At least one provider must be configured to enable AI
+                analysis.
+              </p>
+              <div className="flex flex-col gap-2.5">
+                <ProviderRow
+                  name="Anthropic (Claude)"
+                  description="Uses Claude's vision API for visual analysis"
+                  configured={anthropicConfigured}
+                />
+                <ProviderRow
+                  name="OpenAI (GPT-5)"
+                  description="Uses GPT-5 vision for visual analysis"
+                  configured={openaiConfigured}
+                />
               </div>
-
-              <div className="flex items-center justify-between p-3 rounded-lg border">
-                <div>
-                  <p className="font-medium">OpenAI (GPT-4o)</p>
-                  <p className="text-base text-muted-foreground">
-                    Uses GPT-4o vision for visual analysis
-                  </p>
+              <div className="mt-4 rounded-xl bg-muted p-4">
+                <div className="mb-2 text-[13.5px] font-bold text-foreground">
+                  How to configure
                 </div>
-                <Badge variant={openaiConfigured ? "default" : "secondary"}>
-                  {openaiConfigured ? "Configured" : "Not configured"}
-                </Badge>
-              </div>
-
-              <div className="rounded-lg bg-muted p-4 text-base text-muted-foreground">
-                <p className="font-medium text-foreground mb-1">How to configure</p>
-                <p>
-                  Add your API keys to the <code className="bg-background px-1 py-0.5 rounded">.env</code> file:
-                </p>
-                <pre className="mt-2 bg-background p-3 rounded text-sm overflow-x-auto">
+                <pre className="overflow-x-auto rounded-lg border bg-background px-3.5 py-3 font-mono text-xs leading-relaxed text-[var(--ink-2)]">
 {`ANTHROPIC_API_KEY=sk-ant-...
 OPENAI_API_KEY=sk-...`}
                 </pre>
-                <p className="mt-2">
-                  Then restart the application. At least one provider must be configured to use AI-powered audits.
+                <p className="mt-2.5 text-[12.5px] leading-normal text-muted-foreground">
+                  Then restart the application. Rule-based checks always run
+                  regardless of AI configuration.
                 </p>
               </div>
-            </CardContent>
+            </div>
           </Card>
         </div>
       </div>

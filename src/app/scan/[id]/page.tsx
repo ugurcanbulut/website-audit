@@ -38,8 +38,60 @@ import { XCircle, FileDown } from "lucide-react";
 import Link from "next/link";
 import { buttonVariants } from "@/lib/button-variants";
 import { cn } from "@/lib/utils";
+import { getScoreHexColor } from "@/lib/ui-constants";
+import { GradeChip } from "@/components/dashboard/grade-chip";
 import { DeleteScanButton } from "@/components/scan/delete-scan-button";
 import { SiteHeader } from "@/components/layout/site-header";
+
+// ---------------------------------------------------------------------------
+// Score ring (Direction D) — compact header variant, no label
+// ---------------------------------------------------------------------------
+
+function ScoreRing({
+  score,
+  size = 64,
+  stroke = 6,
+}: {
+  score: number;
+  size?: number;
+  stroke?: number;
+}) {
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
+  return (
+    <div className="relative shrink-0" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="-rotate-90">
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          fill="none"
+          stroke="var(--surface-2)"
+          strokeWidth={stroke}
+        />
+        <circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          fill="none"
+          stroke={getScoreHexColor(score)}
+          strokeWidth={stroke}
+          strokeDasharray={c}
+          strokeDashoffset={c * (1 - score / 100)}
+          strokeLinecap="round"
+        />
+      </svg>
+      <div className="absolute inset-0 flex items-center justify-center">
+        <span
+          className="font-extrabold leading-none tracking-[-0.02em] text-foreground tabular-nums"
+          style={{ fontSize: size * 0.3 }}
+        >
+          {score}
+        </span>
+      </div>
+    </div>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Page
@@ -78,9 +130,8 @@ export default async function ScanDetailPage({ params }: ScanDetailPageProps) {
           { label: "Scan in Progress" },
         ]} />
         <div className="flex flex-1 flex-col gap-4 p-4 lg:p-6">
-          <div className="max-w-2xl">
-            <p className="text-muted-foreground break-all">{scan.url}</p>
-            <ScanProgress scanId={id} viewportNames={viewportNames} />
+          <div className="mx-auto w-full max-w-[760px]">
+            <ScanProgress scanId={id} url={scan.url} viewportNames={viewportNames} />
           </div>
         </div>
       </>
@@ -256,6 +307,18 @@ export default async function ScanDetailPage({ params }: ScanDetailPageProps) {
   const overallScore = scan.overallScore ?? 0;
   const overallGrade = (scan.overallGrade as Grade | null) ?? "F";
 
+  const hostname = (() => {
+    try {
+      return new URL(scan.url).hostname;
+    } catch {
+      return scan.url;
+    }
+  })();
+  const scanDate = scan.createdAt.toLocaleString("en-US", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+
   // Find the previous completed scan of the same URL for trend comparison.
   const previousScan = await db.query.scans.findFirst({
     where: and(
@@ -320,22 +383,40 @@ export default async function ScanDetailPage({ params }: ScanDetailPageProps) {
     <>
       <SiteHeader breadcrumbs={[
         { label: "Dashboard", href: "/" },
-        { label: "Scan Results" },
+        { label: "Scan History", href: "/scan/history" },
+        { label: hostname },
       ]} />
       <div className="flex flex-1 flex-col gap-6 p-4 lg:p-6">
-        <div className="flex items-start justify-end gap-2">
-          <a
-            href={`/api/scans/${id}/pdf`}
-            download
-            className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
-          >
-            <FileDown className="size-4 mr-1" />
-            PDF Report
-          </a>
-          <DeleteScanButton scanId={id} />
+        <div className="flex flex-wrap items-start justify-between gap-5">
+          <div className="flex min-w-0 items-center gap-4">
+            <ScoreRing score={overallScore} size={64} stroke={6} />
+            <div className="min-w-0">
+              <div className="flex items-center gap-2.5">
+                <h1 className="truncate text-[28px] leading-tight tracking-[-0.025em]">
+                  {hostname}
+                </h1>
+                <GradeChip grade={overallGrade} size={28} className="shrink-0" />
+              </div>
+              <p className="mt-1 break-all font-mono text-[13px] text-muted-foreground">
+                {scan.url} · {scanDate}
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <a
+              href={`/api/scans/${id}/pdf`}
+              download
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+            >
+              <FileDown className="size-4 mr-1" />
+              PDF Report
+            </a>
+            <DeleteScanButton scanId={id} />
+          </div>
         </div>
 
         <ReportTabs
+          issuesCount={issues.length}
           summaryContent={
             <ExecutiveOverview
               overallScore={overallScore}

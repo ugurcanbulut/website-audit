@@ -48,75 +48,50 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/* REALSTACK design language (Direction D) — light only, brand #fc492a.
+   Page background is the soft violet-grey surface; cards sit on it in
+   pure white. Neutrals are the "ink" ramp from the design tokens. */
 :root {
-  --radius: 0.65rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.141 0.005 285.823);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.141 0.005 285.823);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.141 0.005 285.823);
-  --primary: oklch(0.646 0.222 41.116);
-  --primary-foreground: oklch(0.98 0.016 73.684);
-  --secondary: oklch(0.967 0.001 286.375);
-  --secondary-foreground: oklch(0.21 0.006 285.885);
-  --muted: oklch(0.967 0.001 286.375);
-  /* Deepened from oklch(0.552) to meet WCAG AA on muted backgrounds. */
-  --muted-foreground: oklch(0.48 0.016 285.938);
-  --accent: oklch(0.967 0.001 286.375);
-  --accent-foreground: oklch(0.21 0.006 285.885);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.92 0.004 286.32);
-  --input: oklch(0.92 0.004 286.32);
-  --ring: oklch(0.75 0.183 55.934);
-  --chart-1: oklch(0.837 0.128 66.29);
-  --chart-2: oklch(0.705 0.213 47.604);
-  --chart-3: oklch(0.646 0.222 41.116);
-  --chart-4: oklch(0.553 0.195 38.402);
-  --chart-5: oklch(0.47 0.157 37.304);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.141 0.005 285.823);
-  --sidebar-primary: oklch(0.646 0.222 41.116);
-  --sidebar-primary-foreground: oklch(0.98 0.016 73.684);
-  --sidebar-accent: oklch(0.967 0.001 286.375);
-  --sidebar-accent-foreground: oklch(0.21 0.006 285.885);
-  --sidebar-border: oklch(0.92 0.004 286.32);
-  --sidebar-ring: oklch(0.75 0.183 55.934);
-}
-
-.dark {
-  --background: oklch(0.141 0.005 285.823);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.21 0.006 285.885);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.21 0.006 285.885);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.705 0.213 47.604);
-  --primary-foreground: oklch(0.98 0.016 73.684);
-  --secondary: oklch(0.274 0.006 286.033);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.274 0.006 286.033);
-  /* Slightly brighter for a clearer primary / secondary text gap in dark mode. */
-  --muted-foreground: oklch(0.748 0.015 286.067);
-  --accent: oklch(0.274 0.006 286.033);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.408 0.123 38.172);
-  --chart-1: oklch(0.837 0.128 66.29);
-  --chart-2: oklch(0.705 0.213 47.604);
-  --chart-3: oklch(0.646 0.222 41.116);
-  --chart-4: oklch(0.553 0.195 38.402);
-  --chart-5: oklch(0.47 0.157 37.304);
-  --sidebar: oklch(0.21 0.006 285.885);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.705 0.213 47.604);
-  --sidebar-primary-foreground: oklch(0.98 0.016 73.684);
-  --sidebar-accent: oklch(0.274 0.006 286.033);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.408 0.123 38.172);
+  --radius: 0.7rem;
+  --background: #f7f6f9;
+  --foreground: #1b1a1f;
+  --card: #ffffff;
+  --card-foreground: #1b1a1f;
+  --popover: #ffffff;
+  --popover-foreground: #1b1a1f;
+  --primary: #fc492a;
+  --primary-foreground: #ffffff;
+  --secondary: #f1eff4;
+  --secondary-foreground: #46434d;
+  --muted: #f1eff4;
+  --muted-foreground: #6e6a76;
+  --accent: #f1eff4;
+  --accent-foreground: #1b1a1f;
+  --destructive: #dc2626;
+  --border: #eceaef;
+  --input: #e2dfe6;
+  --ring: #fc492a;
+  --chart-1: #fc492a;
+  --chart-2: #ff7a4d;
+  --chart-3: #e63916;
+  --chart-4: #ffa589;
+  --chart-5: #b32a0e;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #1b1a1f;
+  --sidebar-primary: #fc492a;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #fff1ed;
+  --sidebar-accent-foreground: #fc492a;
+  --sidebar-border: #eceaef;
+  --sidebar-ring: #fc492a;
+  /* Brand extras used by bespoke components (hero, chips, nav) */
+  --brand: #fc492a;
+  --brand-hover: #e63916;
+  --brand-soft: #fff1ed;
+  --brand-soft-2: #ffe3db;
+  --ink-2: #46434d;
+  --faint: #9a96a3;
+  --surface-2: #f1eff4;
 }
 
 @layer base {
@@ -139,13 +114,12 @@
     letter-spacing: 0;
   }
 
-  /* 4-step type scale — used consistently across the report. Tailwind's
-     text-xl/2xl/3xl sometimes lands on odd line-heights; these rules
-     normalize heading rhythm so card titles + section headers don't jitter. */
-  h1 { @apply text-3xl font-semibold tracking-tight; line-height: 1.2; }
-  h2 { @apply text-2xl font-semibold tracking-tight; line-height: 1.25; }
-  h3 { @apply text-lg font-semibold tracking-tight; line-height: 1.35; }
-  h4 { @apply text-base font-medium; line-height: 1.4; }
+  /* 4-step type scale — used consistently across the report. Direction D
+     heading treatment: Urbanist 800, mixed case, tight tracking. */
+  h1 { @apply text-3xl font-extrabold tracking-[-0.025em]; line-height: 1.15; }
+  h2 { @apply text-2xl font-extrabold tracking-[-0.02em]; line-height: 1.2; }
+  h3 { @apply text-lg font-extrabold tracking-[-0.02em]; line-height: 1.3; }
+  h4 { @apply text-base font-bold; line-height: 1.4; }
 
   /* Body copy keeps the more generous leading; UI controls use the tight
      base line-height set on body{}. Scope prose rhythm to genuine
@@ -178,6 +152,12 @@
 /* Glassmorphism for sticky headers */
 .glass-header {
   @apply bg-background/80 backdrop-blur-md border-b;
+}
+
+/* Indeterminate progress sweep (dashboard live-scan card) */
+@keyframes rs-indeterminate {
+  0% { transform: translateX(-110%); }
+  100% { transform: translateX(360%); }
 }
 
 /* Smooth sidebar transitions */

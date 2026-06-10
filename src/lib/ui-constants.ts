@@ -94,6 +94,24 @@ export function getGradeColor(grade: string): string {
   return GRADE_COLORS[grade] ?? "text-muted-foreground";
 }
 
+export function getGradeFromScore(score: number): Grade {
+  if (score >= 90) return "A";
+  if (score >= 80) return "B";
+  if (score >= 70) return "C";
+  if (score >= 60) return "D";
+  return "F";
+}
+
+// Hex ramp for SVG rings / inline bars where Tailwind classes can't reach.
+// Matches the grade ring colors of the REALSTACK design language.
+export function getScoreHexColor(score: number): string {
+  if (score >= 90) return "#22c55e";
+  if (score >= 80) return "#3b82f6";
+  if (score >= 70) return "#eab308";
+  if (score >= 60) return "#f97316";
+  return "#ef4444";
+}
+
 // ── HTTP Status colors ──────────────────────────────────────────────
 export function getHttpStatusColor(code: number): string {
   if (code >= 200 && code < 300) return "text-green-600 dark:text-green-400";

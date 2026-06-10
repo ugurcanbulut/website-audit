@@ -2,20 +2,105 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2 } from "lucide-react";
+import { Globe, Loader2, Zap } from "lucide-react";
 
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-} from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+
+// Numbered section card (Direction D crawl-form language).
+function CrawlCard({
+  num,
+  title,
+  desc,
+  children,
+}: {
+  num: string;
+  title: string;
+  desc?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Card className="gap-0 rounded-2xl py-0 shadow-none">
+      <div className="p-5">
+        <div className="mb-4 flex gap-3">
+          <span className="flex size-[26px] shrink-0 items-center justify-center rounded-lg bg-[var(--brand-soft)] text-sm font-extrabold text-primary">
+            {num}
+          </span>
+          <div>
+            <h2 className="text-base">{title}</h2>
+            {desc && (
+              <p className="mt-1 text-[13px] leading-normal text-muted-foreground">
+                {desc}
+              </p>
+            )}
+          </div>
+        </div>
+        {children}
+      </div>
+    </Card>
+  );
+}
+
+function SliderRow({
+  id,
+  label,
+  value,
+  display,
+  min,
+  max,
+  step,
+  minLabel,
+  maxLabel,
+  onChange,
+  error,
+}: {
+  id: string;
+  label: string;
+  value: number;
+  display: string;
+  min: number;
+  max: number;
+  step: number;
+  minLabel: string;
+  maxLabel: string;
+  onChange: (value: number) => void;
+  error?: string;
+}) {
+  return (
+    <div>
+      <div className="mb-2 flex items-center justify-between">
+        <Label
+          htmlFor={id}
+          className="whitespace-nowrap text-[13.5px] font-semibold text-[var(--ink-2)]"
+        >
+          {label}
+        </Label>
+        <span className="font-mono text-[13px] font-bold text-primary">
+          {display}
+        </span>
+      </div>
+      <input
+        id={id}
+        type="range"
+        min={min}
+        max={max}
+        step={step}
+        value={value}
+        onChange={(e) => onChange(Number(e.target.value))}
+        className="w-full accent-primary"
+      />
+      <div className="mt-1 flex justify-between font-mono text-[11px] text-[var(--faint)]">
+        <span>{minLabel}</span>
+        <span>{maxLabel}</span>
+      </div>
+      {error && <p className="mt-1 text-sm text-destructive">{error}</p>}
+    </div>
+  );
+}
 
 export function CrawlForm() {
   const router = useRouter();
@@ -113,183 +198,132 @@ export function CrawlForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <form onSubmit={handleSubmit} className="flex flex-col gap-4">
       {/* Seed URL */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Seed URL</CardTitle>
-          <CardDescription>
-            The starting page to crawl. The crawler will discover and follow
-            internal links from this page.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2">
-            <Label htmlFor="crawl-url">URL</Label>
-            <Input
-              id="crawl-url"
-              type="url"
-              placeholder="https://example.com"
-              value={url}
-              onChange={(e) => {
-                setUrl(e.target.value);
-                setErrors((prev) => {
-                  const next = { ...prev };
-                  delete next.url;
-                  return next;
-                });
-              }}
-              aria-invalid={!!errors.url}
-            />
-            {errors.url && (
-              <p className="text-base text-destructive">{errors.url}</p>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+      <CrawlCard
+        num="1"
+        title="Seed URL"
+        desc="The crawler discovers and follows internal links from this page."
+      >
+        <div className="relative">
+          <Globe className="absolute left-3.5 top-1/2 size-[18px] -translate-y-1/2 text-muted-foreground" />
+          <Input
+            id="crawl-url"
+            type="url"
+            placeholder="https://example.com"
+            aria-label="Seed URL"
+            value={url}
+            onChange={(e) => {
+              setUrl(e.target.value);
+              setErrors((prev) => {
+                const next = { ...prev };
+                delete next.url;
+                return next;
+              });
+            }}
+            aria-invalid={!!errors.url}
+            className="h-[46px] rounded-xl border-[1.5px] pl-10 font-mono text-sm"
+          />
+        </div>
+        {errors.url && (
+          <p className="mt-2 text-sm text-destructive">{errors.url}</p>
+        )}
+      </CrawlCard>
 
       {/* Crawl Settings */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Crawl Settings</CardTitle>
-          <CardDescription>
-            Configure how the crawler explores the website.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-5">
-          {/* Max Pages */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="max-pages">Max Pages</Label>
-              <span className="text-base text-muted-foreground tabular-nums">
-                {maxPages}
-              </span>
-            </div>
-            <input
-              id="max-pages"
-              type="range"
-              min={1}
-              max={1000}
-              step={1}
-              value={maxPages}
-              onChange={(e) => setMaxPages(Number(e.target.value))}
-              className="w-full accent-primary"
-            />
-            <div className="flex justify-between text-sm text-muted-foreground">
-              <span>1</span>
-              <span>1000</span>
-            </div>
-            {errors.maxPages && (
-              <p className="text-base text-destructive">{errors.maxPages}</p>
-            )}
-          </div>
-
-          {/* Max Depth */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="max-depth">Max Depth</Label>
-              <span className="text-base text-muted-foreground tabular-nums">
-                {maxDepth}
-              </span>
-            </div>
-            <input
-              id="max-depth"
-              type="range"
-              min={1}
-              max={20}
-              step={1}
-              value={maxDepth}
-              onChange={(e) => setMaxDepth(Number(e.target.value))}
-              className="w-full accent-primary"
-            />
-            <div className="flex justify-between text-sm text-muted-foreground">
-              <span>1</span>
-              <span>20</span>
-            </div>
-            {errors.maxDepth && (
-              <p className="text-base text-destructive">{errors.maxDepth}</p>
-            )}
-          </div>
-
-          {/* Crawl Rate */}
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="crawl-rate">
-                Crawl Rate (ms between requests)
-              </Label>
-              <span className="text-base text-muted-foreground tabular-nums">
-                {crawlRate}ms
-              </span>
-            </div>
-            <input
-              id="crawl-rate"
-              type="range"
-              min={100}
-              max={10000}
-              step={100}
-              value={crawlRate}
-              onChange={(e) => setCrawlRate(Number(e.target.value))}
-              className="w-full accent-primary"
-            />
-            <div className="flex justify-between text-sm text-muted-foreground">
-              <span>100ms (fast)</span>
-              <span>10000ms (slow)</span>
-            </div>
-            {errors.crawlRate && (
-              <p className="text-base text-destructive">{errors.crawlRate}</p>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+      <CrawlCard num="2" title="Crawl Settings" desc="Bound the crawl scope and pace.">
+        <div className="flex flex-col gap-5">
+          <SliderRow
+            id="max-pages"
+            label="Max pages"
+            value={maxPages}
+            display={String(maxPages)}
+            min={1}
+            max={1000}
+            step={1}
+            minLabel="1"
+            maxLabel="1000"
+            onChange={setMaxPages}
+            error={errors.maxPages}
+          />
+          <SliderRow
+            id="max-depth"
+            label="Max depth"
+            value={maxDepth}
+            display={String(maxDepth)}
+            min={1}
+            max={20}
+            step={1}
+            minLabel="1"
+            maxLabel="20"
+            onChange={setMaxDepth}
+            error={errors.maxDepth}
+          />
+          <SliderRow
+            id="crawl-rate"
+            label="Crawl rate (ms between requests)"
+            value={crawlRate}
+            display={`${crawlRate}ms`}
+            min={100}
+            max={10000}
+            step={100}
+            minLabel="100ms (fast)"
+            maxLabel="10000ms (slow)"
+            onChange={setCrawlRate}
+            error={errors.crawlRate}
+          />
+        </div>
+      </CrawlCard>
 
       {/* Crawler Behavior */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Crawler Behavior</CardTitle>
-          <CardDescription>
-            Control how the crawler interacts with the target website.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex items-center justify-between">
-            <Label htmlFor="respect-robots">Respect robots.txt</Label>
-            <Switch
-              id="respect-robots"
-              checked={respectRobotsTxt}
-              onCheckedChange={(checked) => setRespectRobotsTxt(checked)}
-            />
-          </div>
-          <div className="flex items-center justify-between">
-            <Label htmlFor="follow-sitemaps">Follow sitemaps</Label>
-            <Switch
-              id="follow-sitemaps"
-              checked={followSitemaps}
-              onCheckedChange={(checked) => setFollowSitemaps(checked)}
-            />
-          </div>
-        </CardContent>
-      </Card>
+      <CrawlCard
+        num="3"
+        title="Crawler Behavior"
+        desc="Control how the crawler interacts with the target."
+      >
+        <div className="flex items-center justify-between border-b py-3">
+          <Label
+            htmlFor="respect-robots"
+            className="text-[13.5px] font-semibold text-foreground"
+          >
+            Respect robots.txt
+          </Label>
+          <Switch
+            id="respect-robots"
+            checked={respectRobotsTxt}
+            onCheckedChange={(checked) => setRespectRobotsTxt(checked)}
+          />
+        </div>
+        <div className="flex items-center justify-between py-3">
+          <Label
+            htmlFor="follow-sitemaps"
+            className="text-[13.5px] font-semibold text-foreground"
+          >
+            Follow sitemaps
+          </Label>
+          <Switch
+            id="follow-sitemaps"
+            checked={followSitemaps}
+            onCheckedChange={(checked) => setFollowSitemaps(checked)}
+          />
+        </div>
+      </CrawlCard>
 
       {/* Exclude Patterns */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Exclude Patterns</CardTitle>
-          <CardDescription>
-            URL patterns to skip (one per line). Supports glob patterns like{" "}
-            <code className="text-sm">/blog/*</code> or{" "}
-            <code className="text-sm">*.pdf</code>.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <textarea
-            placeholder={"/admin/*\n*.pdf\n/wp-json/*"}
-            value={excludePatterns}
-            onChange={(e) => setExcludePatterns(e.target.value)}
-            rows={4}
-            className="w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-2 text-base transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 dark:bg-input/30"
-          />
-        </CardContent>
-      </Card>
+      <CrawlCard
+        num="4"
+        title="Exclude Patterns"
+        desc="URL patterns to skip (one per line). Supports globs like /blog/* or *.pdf."
+      >
+        <textarea
+          placeholder={"/admin/*\n*.pdf\n/wp-json/*"}
+          aria-label="Exclude patterns, one per line"
+          value={excludePatterns}
+          onChange={(e) => setExcludePatterns(e.target.value)}
+          rows={4}
+          className="w-full min-w-0 resize-y rounded-xl border-[1.5px] border-input bg-background px-3.5 py-2.5 font-mono text-[13px] leading-[1.7] text-foreground outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50"
+        />
+      </CrawlCard>
 
       {/* Submit */}
       {submitError && (
@@ -301,11 +335,14 @@ export function CrawlForm() {
       <Button type="submit" disabled={submitting} size="lg" className="w-full">
         {submitting ? (
           <>
-            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            <Loader2 className="size-4 animate-spin" />
             Starting Crawl...
           </>
         ) : (
-          "Start Crawl"
+          <>
+            <Zap className="size-4" />
+            Start Crawl
+          </>
         )}
       </Button>
     </form>

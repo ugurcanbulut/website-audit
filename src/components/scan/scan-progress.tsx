@@ -4,25 +4,20 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
+  ArrowRight,
   Ban,
   CheckCircle2,
-  Circle,
+  Clock,
   Loader2,
+  ScanSearch,
   XCircle,
-  ArrowRight,
+  Zap,
 } from "lucide-react";
 import { useScanProgress } from "@/hooks/use-scan-progress";
 import { buttonVariants } from "@/lib/button-variants";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
-
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
+import { Card } from "@/components/ui/card";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -30,14 +25,44 @@ import { Progress } from "@/components/ui/progress";
 
 interface ScanProgressProps {
   scanId: string;
+  url?: string;
   viewportNames: string[];
+}
+
+// ---------------------------------------------------------------------------
+// Status badge (Direction D)
+// ---------------------------------------------------------------------------
+
+function StatusBadge({ state }: { state: "scanning" | "completed" | "failed" }) {
+  if (state === "completed") {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-50 py-1 pl-2 pr-2.5 text-xs font-bold text-emerald-600">
+        <CheckCircle2 className="size-3.5" />
+        Completed
+      </span>
+    );
+  }
+  if (state === "failed") {
+    return (
+      <span className="inline-flex items-center gap-1.5 rounded-lg bg-red-50 py-1 pl-2 pr-2.5 text-xs font-bold text-destructive">
+        <XCircle className="size-3.5" />
+        Failed
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center gap-1.5 rounded-lg bg-[var(--brand-soft)] py-1 pl-2 pr-2.5 text-xs font-bold text-primary">
+      <Clock className="size-3.5 animate-spin [animation-duration:1.4s]" />
+      Scanning
+    </span>
+  );
 }
 
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
 
-export function ScanProgress({ scanId, viewportNames }: ScanProgressProps) {
+export function ScanProgress({ scanId, url, viewportNames }: ScanProgressProps) {
   const router = useRouter();
   const [isCancelling, setIsCancelling] = useState(false);
   const { events, latestEvent, isConnected, isComplete, progress, completedViewports } =
@@ -54,141 +79,197 @@ export function ScanProgress({ scanId, viewportNames }: ScanProgressProps) {
   }
 
   const failed = latestEvent?.type === "error";
+  const done = isComplete && !failed;
+  const pct = Math.round(progress);
+  const state = failed ? "failed" : done ? "completed" : "scanning";
+
+  // While running, the first not-yet-captured viewport is the active one.
+  const activeViewport = !isComplete
+    ? viewportNames.find((name) => !completedViewports.has(name))
+    : undefined;
 
   return (
-    <div className="space-y-6">
-      {/* Progress Bar */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            {isComplete ? (
-              failed ? (
-                <XCircle className="h-5 w-5 text-destructive" />
-              ) : (
-                <CheckCircle2 className="h-5 w-5 text-emerald-500" />
-              )
-            ) : (
-              <Loader2 className="h-5 w-5 animate-spin text-primary" />
+    <div className="space-y-4">
+      {/* Main progress card */}
+      <Card className="gap-0 rounded-2xl p-6 shadow-none">
+        <div className="mb-[18px] flex items-center gap-3.5">
+          <div
+            className={cn(
+              "flex size-[52px] shrink-0 items-center justify-center rounded-[14px]",
+              failed
+                ? "bg-red-50"
+                : done
+                  ? "bg-emerald-50"
+                  : "bg-[var(--brand-soft)]",
             )}
-            {isComplete
-              ? failed
-                ? "Scan Failed"
-                : "Scan Complete"
-              : "Scanning..."}
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-2">
-            <div className="flex items-center justify-between text-base">
-              <span className="font-medium tabular-nums">
-                {Math.round(progress)}%
-              </span>
-              {latestEvent && (
-                <div aria-live="polite" aria-atomic="true" className="text-muted-foreground truncate ml-4">
-                  {latestEvent.data.message}
-                </div>
-              )}
-            </div>
-            <Progress value={progress} />
+          >
+            {failed ? (
+              <XCircle className="size-[26px] text-destructive" />
+            ) : done ? (
+              <CheckCircle2 className="size-[26px] text-emerald-600" />
+            ) : (
+              <ScanSearch className="size-[26px] animate-spin text-primary [animation-duration:2s]" />
+            )}
           </div>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <h1 className="text-[22px] leading-none tracking-[-0.02em]">
+                {failed ? "Scan failed" : done ? "Scan complete" : "Scanning…"}
+              </h1>
+              <StatusBadge state={state} />
+            </div>
+            {url && (
+              <p className="mt-1.5 truncate font-mono text-[13.5px] text-muted-foreground">
+                {url}
+              </p>
+            )}
+          </div>
+          <span
+            className={cn(
+              "shrink-0 text-[38px] font-extrabold leading-none tabular-nums",
+              failed
+                ? "text-destructive"
+                : done
+                  ? "text-emerald-600"
+                  : "text-primary",
+            )}
+          >
+            {pct}%
+          </span>
+        </div>
 
-          {!isConnected && !isComplete && (
-            <p className="text-base text-amber-600">
-              Connection lost. Attempting to reconnect...
-            </p>
-          )}
-        </CardContent>
+        {/* Progress bar */}
+        <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
+          <div
+            className={cn(
+              "h-full rounded-full transition-[width] duration-500",
+              failed ? "bg-destructive" : done ? "bg-emerald-500" : "bg-primary",
+            )}
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+
+        {/* Current stage */}
+        {latestEvent && (
+          <div
+            aria-live="polite"
+            aria-atomic="true"
+            className={cn(
+              "mt-3 flex min-w-0 items-center gap-2 text-[13px]",
+              failed ? "text-destructive" : "text-[var(--ink-2)]",
+            )}
+          >
+            {!isComplete && <Zap className="size-3.5 shrink-0 text-primary" />}
+            <span className="truncate">{latestEvent.data.message}</span>
+          </div>
+        )}
+
+        {!isConnected && !isComplete && (
+          <p className="mt-3 flex items-center gap-2 text-[13px] text-amber-600">
+            <Loader2 className="size-3.5 animate-spin" />
+            Connection lost. Attempting to reconnect...
+          </p>
+        )}
       </Card>
 
-      {/* Viewport Progress */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Viewports</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <ul className="space-y-2">
+      {/* Viewports + activity log */}
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Card className="gap-0 rounded-2xl px-5 py-[18px] shadow-none">
+          <h2 className="text-[15px]">Viewports</h2>
+          <ul className="mt-3.5 space-y-2.5">
             {viewportNames.map((name) => {
-              const done = completedViewports.has(name);
+              const captured = completedViewports.has(name) || done;
+              const active = name === activeViewport;
               return (
-                <li key={name} className="flex items-center gap-2 text-base">
-                  {done ? (
-                    <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                <li key={name} className="flex items-center gap-2.5">
+                  {captured ? (
+                    <CheckCircle2 className="size-[17px] shrink-0 text-emerald-500" />
                   ) : isComplete ? (
-                    failed ? (
-                      <XCircle className="h-4 w-4 text-destructive" />
-                    ) : (
-                      <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                    )
+                    <XCircle className="size-[17px] shrink-0 text-destructive" />
+                  ) : active ? (
+                    <Clock className="size-[17px] shrink-0 animate-spin text-primary [animation-duration:2s]" />
                   ) : (
-                    <Circle className="h-4 w-4 text-muted-foreground" />
+                    <span className="size-[17px] shrink-0 rounded-full border-2 border-border" />
                   )}
                   <span
-                    className={
-                      done || (isComplete && !failed)
-                        ? "text-foreground"
-                        : "text-muted-foreground"
-                    }
+                    className={cn(
+                      "whitespace-nowrap text-[13.5px]",
+                      captured || active
+                        ? "font-semibold text-foreground"
+                        : "font-medium text-[var(--faint)]",
+                    )}
                   >
                     {name}
                   </span>
+                  {captured && (
+                    <span className="ml-auto text-[11.5px] font-bold text-emerald-600">
+                      Captured
+                    </span>
+                  )}
                 </li>
               );
             })}
           </ul>
-        </CardContent>
-      </Card>
+        </Card>
 
-      {/* Status Log */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Activity Log</CardTitle>
-        </CardHeader>
-        <CardContent>
+        <Card className="gap-0 rounded-2xl px-5 py-[18px] shadow-none">
+          <h2 className="text-[15px]">Activity log</h2>
           {events.length === 0 ? (
-            <p className="text-base text-muted-foreground">
-              Waiting for events...
+            <p className="mt-3.5 flex gap-2 font-mono text-[12.5px] text-muted-foreground">
+              <span className="text-[var(--faint)]">›</span>
+              Waiting for events…
             </p>
           ) : (
-            <ul className="space-y-1.5 max-h-60 overflow-y-auto">
-              {events.map((event, i) => (
-                <li
-                  key={i}
-                  className={cn(
-                    "text-base",
-                    event.type === "error"
-                      ? "text-destructive"
-                      : "text-muted-foreground",
-                  )}
-                >
-                  {event.data.message}
-                </li>
-              ))}
+            <ul className="mt-3.5 max-h-[196px] space-y-[7px] overflow-y-auto">
+              {events
+                .slice()
+                .reverse()
+                .map((event, i) => (
+                  <li
+                    key={events.length - 1 - i}
+                    className={cn(
+                      "flex gap-2 font-mono text-[12.5px]",
+                      event.type === "error"
+                        ? "text-destructive"
+                        : i === 0
+                          ? "text-foreground"
+                          : "text-muted-foreground",
+                    )}
+                  >
+                    <span className="shrink-0 text-[var(--faint)]">›</span>
+                    <span className="break-words">{event.data.message}</span>
+                  </li>
+                ))}
             </ul>
           )}
-        </CardContent>
-      </Card>
+        </Card>
+      </div>
 
       {/* Cancel Button */}
       {!isComplete && (
         <Button
           variant="outline"
+          size="lg"
           onClick={handleCancel}
           disabled={isCancelling}
-          className="w-full"
+          className="w-full font-bold"
         >
-          <Ban className="h-4 w-4 mr-1" />
+          <Ban className="size-4" />
           {isCancelling ? "Cancelling..." : "Cancel Scan"}
         </Button>
       )}
 
       {/* View Report Link */}
-      {isComplete && !failed && (
+      {done && (
         <Link
           href={`/scan/${scanId}`}
-          className={cn(buttonVariants({ variant: "default", size: "lg" }), "w-full")}
+          className={cn(
+            buttonVariants({ variant: "default", size: "lg" }),
+            "w-full font-bold",
+          )}
         >
           View Report
-          <ArrowRight className="h-4 w-4 ml-2" />
+          <ArrowRight className="size-4" />
         </Link>
       )}
     </div>

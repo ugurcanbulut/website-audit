@@ -47,16 +47,13 @@ export function DeviceSelector({ selected, onChange }: DeviceSelectorProps) {
   const allSelected = selected.length === DEVICE_PRESETS.length;
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-base text-muted-foreground">
-          {selected.length} of {DEVICE_PRESETS.length} devices selected
-        </p>
+    <div>
+      <div className="-mb-2 flex justify-end">
         <button
           type="button"
           onClick={allSelected ? deselectAll : selectAll}
           aria-label={allSelected ? "Deselect all devices" : "Select all devices"}
-          className="text-sm text-primary hover:underline"
+          className="rounded-md px-2 py-1 text-sm font-semibold text-primary hover:bg-[var(--brand-soft)]"
         >
           {allSelected ? "Deselect all" : "Select all"}
         </button>
@@ -66,14 +63,20 @@ export function DeviceSelector({ selected, onChange }: DeviceSelectorProps) {
         const Icon = typeIcons[type];
         const devices = grouped[type];
         if (devices.length === 0) return null;
+        const groupSelected = devices.filter((d) => selected.includes(d.name)).length;
 
         return (
-          <div key={type}>
-            <div className="flex items-center gap-2 mb-2">
-              <Icon className="size-4 text-muted-foreground" />
-              <span className="text-base font-medium">{typeLabels[type]}</span>
+          <div key={type} className="mt-3.5">
+            <div className="mb-2 flex items-center gap-1.5">
+              <Icon className="size-[15px] text-muted-foreground" />
+              <span className="text-[13px] font-bold text-[var(--ink-2)]">
+                {typeLabels[type]}
+              </span>
+              <span className="text-[11.5px] text-[var(--faint)]">
+                · {groupSelected}/{devices.length}
+              </span>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {devices.map((device) => {
                 const isSelected = selected.includes(device.name);
                 return (
@@ -83,27 +86,41 @@ export function DeviceSelector({ selected, onChange }: DeviceSelectorProps) {
                     onClick={() => toggle(device.name)}
                     aria-pressed={isSelected}
                     className={cn(
-                      "flex items-center gap-3 rounded-lg border p-3 text-left text-base transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+                      "flex items-center gap-2.5 rounded-[11px] border-[1.5px] px-3 py-2.5 text-left transition-colors focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
                       isSelected
-                        ? "border-primary bg-primary/5"
-                        : "border-border hover:bg-muted/50"
+                        ? "border-primary bg-[var(--brand-soft)]"
+                        : "border-input bg-card hover:bg-muted/50"
                     )}
                   >
-                    <div className="flex-1 min-w-0">
-                      <p className={cn("font-medium truncate", isSelected && "text-primary")}>
+                    <div className="min-w-0 flex-1">
+                      <p
+                        className={cn(
+                          "truncate text-[13px] leading-snug font-bold",
+                          isSelected ? "text-primary" : "text-foreground"
+                        )}
+                      >
                         {device.name}
                       </p>
-                      <p className="text-sm text-muted-foreground">
-                        {device.width}x{device.height}
+                      <p className="mt-px font-mono text-[11.5px] leading-snug text-muted-foreground">
+                        {device.width}×{device.height}
                         {device.deviceScaleFactor && device.deviceScaleFactor > 1
                           ? ` @${device.deviceScaleFactor}x`
                           : ""}
                         {device.defaultBrowserType === "webkit" ? " · Safari" : ""}
                       </p>
                     </div>
-                    {isSelected && (
-                      <Check className="size-4 text-primary shrink-0" />
-                    )}
+                    <span
+                      className={cn(
+                        "flex size-5 shrink-0 items-center justify-center rounded-md border-[1.5px]",
+                        isSelected
+                          ? "border-primary bg-primary"
+                          : "border-input bg-transparent"
+                      )}
+                    >
+                      {isSelected && (
+                        <Check className="size-[13px] text-white" strokeWidth={3} />
+                      )}
+                    </span>
                   </button>
                 );
               })}

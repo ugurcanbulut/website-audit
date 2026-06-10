@@ -12,15 +12,19 @@ import {
   Trash2,
   Search,
   Monitor,
+  Globe,
   Plus,
 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { EmptyState } from "@/components/ui/empty-state";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { SCAN_STATUS_CONFIG, getGradeColor } from "@/lib/ui-constants";
+import { SCAN_STATUS_CONFIG } from "@/lib/ui-constants";
+import { formatRelativeTime } from "@/lib/relative-time";
+import { GradeChip } from "@/components/dashboard/grade-chip";
 
 interface Scan {
   id: string;
@@ -32,12 +36,9 @@ interface Scan {
   createdAt: Date;
 }
 
-const statusConfig: Record<
-  string,
-  { label: string; variant: "default" | "secondary" | "destructive" | "outline" }
-> = {
-  ...SCAN_STATUS_CONFIG,
-};
+const GRID = "grid-cols-[minmax(0,1fr)_130px_110px_100px_110px_40px]";
+
+const RUNNING_STATUSES = ["scanning", "auditing", "analyzing"];
 
 function StatusIcon({ status }: { status: string }) {
   switch (status) {
@@ -56,13 +57,27 @@ function StatusIcon({ status }: { status: string }) {
   }
 }
 
-function formatDate(date: Date): string {
-  return new Intl.DateTimeFormat("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  }).format(new Date(date));
+function StatusPill({ status }: { status: string }) {
+  const config = SCAN_STATUS_CONFIG[status] ?? SCAN_STATUS_CONFIG.pending;
+  const tone =
+    status === "completed"
+      ? "bg-emerald-50 text-emerald-700"
+      : RUNNING_STATUSES.includes(status)
+        ? "bg-[var(--brand-soft)] text-primary"
+        : status === "failed"
+          ? "bg-red-50 text-red-600"
+          : "bg-secondary text-muted-foreground";
+  return (
+    <span
+      className={cn(
+        "inline-flex w-fit items-center gap-1.5 rounded-lg py-[3px] pl-2 pr-2.5 text-xs font-bold",
+        tone
+      )}
+    >
+      <StatusIcon status={status} />
+      {config.label}
+    </span>
+  );
 }
 
 function getHostname(url: string): string {
@@ -132,112 +147,108 @@ export function ScanHistoryList({ scans }: { scans: Scan[] }) {
 
   if (scans.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 text-center">
-        <div className="rounded-full bg-muted p-4 mb-4">
-          <Monitor className="size-8 text-muted-foreground" />
-        </div>
-        <p className="text-muted-foreground text-base mb-4">No scans yet</p>
-        <Button render={<Link href="/scan/new" />}>
-          <Plus className="size-4 mr-2" />
-          Start a New Scan
-        </Button>
-      </div>
+      <Card className="rounded-2xl py-0 shadow-none">
+        <EmptyState
+          icon={Monitor}
+          title="No scans yet"
+          description="Run your first audit to see it land here."
+          action={
+            <Button render={<Link href="/scan/new" />}>
+              <Plus className="size-4" />
+              Start a New Scan
+            </Button>
+          }
+        />
+      </Card>
     );
   }
 
   return (
-    <>
-      <div className="relative mb-4">
-        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-        <Input
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Filter by URL..."
-          className="pl-8"
-        />
+    <Card className="gap-0 overflow-hidden rounded-2xl py-0 shadow-none">
+      <div className="flex items-center gap-3 border-b px-4 py-3.5">
+        <div className="relative w-full max-w-[360px]">
+          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Filter by site…"
+            className="h-10 rounded-[11px] pl-9"
+          />
+        </div>
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="border-b text-muted-foreground">
-              <th className="pb-2 pr-4 text-left font-medium">Site</th>
-              <th className="pb-2 pr-4 text-left font-medium">Status</th>
-              <th className="pb-2 pr-4 text-left font-medium hidden sm:table-cell">Score</th>
-              <th className="pb-2 pr-4 text-left font-medium hidden sm:table-cell">Engine</th>
-              <th className="pb-2 pr-4 text-left font-medium hidden sm:table-cell">Date</th>
-              <th className="pb-2 text-right font-medium" />
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((scan) => {
-              const config = statusConfig[scan.status] ?? statusConfig.pending;
-              return (
-                <tr
-                  key={scan.id}
-                  className="group border-b last:border-0 cursor-pointer hover:bg-muted/50"
-                  onClick={() => router.push(`/scan/${scan.id}`)}
-                >
-                  <td className="py-3 pr-4">
-                    <span className="font-medium">
-                      {getHostname(scan.url)}
-                    </span>
-                    <p className="text-xs text-muted-foreground truncate max-w-[200px] sm:max-w-xs">
-                      {scan.url}
-                    </p>
-                  </td>
-                  <td className="py-3 pr-4">
-                    <Badge variant={config.variant} className="gap-1">
-                      <StatusIcon status={scan.status} />
-                      {config.label}
-                    </Badge>
-                  </td>
-                  <td className="py-3 pr-4 hidden sm:table-cell">
-                    {scan.status === "completed" &&
-                    scan.overallScore !== null ? (
-                      <div className="flex items-center gap-1.5">
-                        <span className="tabular-nums font-medium">
-                          {scan.overallScore}
-                        </span>
-                        {scan.overallGrade && (
-                          <span
-                            className={cn(
-                              "text-xs font-semibold",
-                              getGradeColor(scan.overallGrade)
-                            )}
-                          >
-                            {scan.overallGrade}
-                          </span>
-                        )}
-                      </div>
-                    ) : (
-                      <span className="text-muted-foreground">--</span>
-                    )}
-                  </td>
-                  <td className="py-3 pr-4 capitalize text-muted-foreground hidden sm:table-cell">
-                    {scan.browserEngine ?? "--"}
-                  </td>
-                  <td className="py-3 pr-4 whitespace-nowrap text-muted-foreground hidden sm:table-cell">
-                    {formatDate(scan.createdAt)}
-                  </td>
-                  <td className="py-3 text-right">
-                    <DeleteButton scanId={scan.id} />
-                  </td>
-                </tr>
-              );
-            })}
-            {filtered.length === 0 && (
-              <tr>
-                <td
-                  colSpan={6}
-                  className="py-8 text-center text-muted-foreground"
-                >
-                  No scans matching &ldquo;{search}&rdquo;
-                </td>
-              </tr>
+        <div className="min-w-[760px]">
+          <div
+            className={cn(
+              "grid gap-3.5 border-b px-4 py-2.5 text-[10.5px] font-bold uppercase tracking-[.05em] text-[var(--faint)]",
+              GRID
             )}
-          </tbody>
-        </table>
+          >
+            <span>Site</span>
+            <span>Status</span>
+            <span>Score</span>
+            <span>Engine</span>
+            <span>Date</span>
+            <span />
+          </div>
+          {filtered.map((scan, i) => {
+            const completed =
+              scan.status === "completed" && scan.overallScore !== null;
+            return (
+              <div
+                key={scan.id}
+                className={cn(
+                  "group grid cursor-pointer items-center gap-3.5 px-4 py-3 transition-colors hover:bg-muted/50",
+                  GRID,
+                  i < filtered.length - 1 && "border-b"
+                )}
+                onClick={() => router.push(`/scan/${scan.id}`)}
+              >
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-secondary">
+                    <Globe className="size-4 text-muted-foreground" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="truncate text-[13.5px] font-bold text-foreground">
+                      {getHostname(scan.url)}
+                    </div>
+                    <div className="truncate font-mono text-[11.5px] text-[var(--faint)]">
+                      {scan.url}
+                    </div>
+                  </div>
+                </div>
+                <StatusPill status={scan.status} />
+                {completed ? (
+                  <div className="flex items-center gap-2">
+                    <GradeChip
+                      score={scan.overallScore!}
+                      grade={scan.overallGrade ?? undefined}
+                      size={22}
+                    />
+                    <span className="text-base font-extrabold tabular-nums text-foreground">
+                      {scan.overallScore}
+                    </span>
+                  </div>
+                ) : (
+                  <span className="text-[var(--faint)]">—</span>
+                )}
+                <span className="text-[12.5px] capitalize text-muted-foreground">
+                  {scan.browserEngine ?? "—"}
+                </span>
+                <span className="whitespace-nowrap text-[12.5px] text-muted-foreground">
+                  {formatRelativeTime(scan.createdAt)}
+                </span>
+                <div className="justify-self-end">
+                  <DeleteButton scanId={scan.id} />
+                </div>
+              </div>
+            );
+          })}
+          {filtered.length === 0 && (
+            <EmptyState icon={Search} title={`No scans matching "${search}"`} />
+          )}
+        </div>
       </div>
-    </>
+    </Card>
   );
 }

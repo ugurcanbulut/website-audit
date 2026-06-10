@@ -10,6 +10,16 @@
 
 ## 1. Current state — where we left off
 
+### 🎨 REALSTACK REDESIGN (2026-06-10) — Direction D implemented, committed & pushed
+- Source: Claude Design handoff bundle (user iterated A/B/C/D prototypes; picked **D — Compact Bold**: B's top nav + orange hero, A's tables/summary, Urbanist 800 headings, brand `#fc492a`, **no dark mode**).
+- **Implemented app-wide:** tokens rewritten in `globals.css` (light-only, bg `#f7f6f9`, ink `#1b1a1f`, primary `#fc492a`, extras `--brand-soft/--ink-2/--faint/--surface-2`; `.dark` block deleted, `dark:` classes inert); headings globally Urbanist 800 tight; **sidebar replaced by top nav** (`layout/top-nav.tsx` — logo, Dashboard, Website Audit + SEO Crawl dropdowns, New Scan btn, settings; `app-sidebar.tsx`/`theme-toggle.tsx`/`header.tsx` deleted, next-themes provider removed); REALSTACK `Logo`/`LogoMark` in `layout/logo.tsx`; `SiteHeader` is now a breadcrumb strip; metadata title "REALSTACK Audit".
+- **Dashboard rebuilt** (`page.tsx` + `dashboard/hero|section-cards|recent-scans|latest-report|grade-chip`): orange hero with URL input (prefills `/scan/new?url=` — `ScanForm` takes `initialUrl`) + live-scan card (honest indeterminate bar, no fake %), 4 stat cards (added this-week + per-scan severity-count queries), recent-scans grid rows (grade chip + score bar + sev pills), latest-report card (score ring + category bars, worst-first).
+- **Inner pages restyled** (3 parallel agents): scan form → numbered cards + segmented engine/provider + device chips + sticky run summary; report header (ring + grade chip + mono subline) + underline tabs (`issuesCount` chip) + scan-progress (icon tile, big %, viewport checklist, newest-first activity log — fixes punch-list #8); history/batch/settings/crawl pages → `layout/page-head.tsx` PageHead + breadcrumbs + grid-row tables. Punch-list **#7 done** (GPT-4o→GPT-5 labels), **#5 moot** (light-only).
+- New helpers: `lib/relative-time.ts`, `getGradeFromScore`/`getScoreHexColor` in `ui-constants.ts`.
+- **Deliberately omitted** (would be dead controls — no backing functionality): top-nav ⌘K search, bell, avatar; dashboard "Filter" button. Add when real features exist.
+- Verified: `tsc` clean, `npm run build` clean, all routes 200, Playwright screenshots of dashboard/scan-new/history/settings/crawl-new/report checked visually.
+- Design bundle (prototypes + chat) extracted at `~/.claude/projects/-home-ugurcan-Projects-website-audit/0dab3c16-9e5f-4a4e-8790-80c8132985e1/tool-results/design-bundle/` (session-local; re-fetch from the design link if needed).
+
 ### 🔑 PRODUCT PIVOT (2026-06-09 brainstorm) — INTERNAL AGENCY TOOL, not a SaaS
 - Confirmed by user: the tool runs **inside the agency the user works at**, to audit **client websites at delivery / QA time** — catch issues before the client does + produce a report. NOT a commercial SaaS, no revenue model.
 - PARKED (parked, not trashed): all SaaS thinking in [`docs/PRODUCT_VISION.md`](docs/PRODUCT_VISION.md) — pricing tiers, scale-ceiling A/B/C/D, public demo funnel, OSS-vs-closed, SaaS positioning. **That doc still shows the old SaaS framing and needs a rewrite to the internal-tool thesis (parked task).**
@@ -124,7 +134,7 @@ Deps installed (`2eb7661`: pino, pino-pretty, @sentry/nextjs, @sentry/node, @bul
 ## 5. User preferences
 
 - **Hybrid AI** — rule-based checks always on, AI analysis optional, both Claude and OpenAI as selectable providers in the scan form.
-- **Communication** — User writes in Turkish. Reply in Turkish unless code/docs.
+- **Communication** — Reply in **English** (user switched from Turkish on 2026-06-10; English from now on, even if the user occasionally writes Turkish).
 - **Email** — ugurcanbulut@gmail.com.
 
 ---
