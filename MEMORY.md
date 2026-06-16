@@ -2,7 +2,7 @@
 
 > Persistent context for Claude Code, synced via git so any machine (laptop, desktop) gets the same picture. Loaded automatically through `CLAUDE.md`.
 
-**Last updated:** 2026-06-10
+**Last updated:** 2026-06-16
 **Repo:** github.com/ugurcanbulut/website-audit
 **Branch:** main
 
@@ -46,7 +46,9 @@
 - **Not a bug:** Summary "Accessibility 0 / UX Quality 0" are **real rule-based scores** crushed by 707 axe contrast items (mostly axe "[Needs Review]" incompletes) + touch-target issues. Whether "needs-review" should floor a category = post-demo scoring-methodology question.
 
 ### Last shipped commits (origin/main)
-- *(this session, 2026-06-10)* fix: demo polish — radar `oklch`→`var`, scan-form `[object Object]`, SSE heartbeat+cancel
+- `86b64aa` *(2026-06-16)* fix: viewport tabs crash — sanitize PhotoSwipe gallery id. **Root cause:** viewport names carry a `"` (e.g. `MacBook Pro 14"`); `viewport-tabs.tsx` built the gallery id with only `\s+`→`-`, so the `"` leaked into PhotoSwipe's `querySelectorAll("#"+id)` → invalid CSS selector → `SyntaxError` in lightbox `init()` → crashed the tab subtree ("This page couldn't load"). **Fix:** `toSafeId()` in `screenshot-gallery.tsx` slugifies the id (strip non-`[A-Za-z0-9_-]`, force non-digit start) for both the DOM `id` and the selector — protects all 3 call sites. Verified in prod build via Playwright (all device tabs switch, zero console errors).
+- `29b8077` *(2026-06-10)* feat: REALSTACK redesign (Direction D) — top nav, orange brand, light-only theme
+- *(2026-06-10)* `7ae1e84` fix: demo polish — radar `oklch`→`var`, scan-form `[object Object]`, SSE heartbeat+cancel
 - `81f4a13` docs: capture product vision brainstorm session 1
 - `158951d` fix: docker healthcheck — node http probe (wget/curl missing in node:22-slim)
 - `c59c79f` fix: crawler — empty `Disallow:` is allow-all per RFC 9309 §2.2.2
