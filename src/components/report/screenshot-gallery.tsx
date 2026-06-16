@@ -9,12 +9,24 @@ interface ScreenshotGalleryProps {
   children: React.ReactNode;
 }
 
+/**
+ * Coerce an arbitrary string into a valid CSS/HTML identifier. PhotoSwipe uses
+ * `#${galleryId}` as a `querySelectorAll` argument, so characters like the `"`
+ * in viewport names (`MacBook Pro 14"`) would throw a SyntaxError and crash the
+ * tree. Strip anything outside [A-Za-z0-9_-] and guarantee a non-digit start.
+ */
+function toSafeId(raw: string): string {
+  const cleaned = raw.replace(/[^A-Za-z0-9_-]+/g, "-").replace(/^-+|-+$/g, "");
+  return /^[A-Za-z]/.test(cleaned) ? cleaned : `g-${cleaned}`;
+}
+
 export function ScreenshotGallery({ galleryId, children }: ScreenshotGalleryProps) {
   const lightboxRef = useRef<PhotoSwipeLightbox | null>(null);
+  const safeId = toSafeId(galleryId);
 
   useEffect(() => {
     const lightbox = new PhotoSwipeLightbox({
-      gallery: `#${galleryId}`,
+      gallery: `#${safeId}`,
       children: "a[data-pswp-src]",
       pswpModule: () => import("photoswipe"),
       wheelToZoom: true,
@@ -70,10 +82,10 @@ export function ScreenshotGallery({ galleryId, children }: ScreenshotGalleryProp
       lightbox.destroy();
       lightboxRef.current = null;
     };
-  }, [galleryId]);
+  }, [safeId]);
 
   return (
-    <div id={galleryId}>
+    <div id={safeId}>
       {children}
     </div>
   );
