@@ -412,7 +412,7 @@ export default async function ScanDetailPage({ params, searchParams }: ScanDetai
           <div className="flex items-center gap-2">
             <ReportModeToggle current={view} />
             <a
-              href={`/api/scans/${id}/pdf`}
+              href={`/api/scans/${id}/pdf${view === "client" ? "?view=client" : ""}`}
               download
               className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
             >
