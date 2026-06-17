@@ -8,6 +8,7 @@ import {
   Layers,
   History,
   Globe,
+  Network,
   Settings,
   Plus,
   ChevronDown,
@@ -39,6 +40,13 @@ const NAV_GROUPS = [
       { title: "New Crawl", url: "/crawl/new", icon: Globe },
       { title: "Compare Crawls", url: "/crawl/compare", icon: Layers },
       { title: "Crawl History", url: "/crawl/history", icon: History },
+    ],
+  },
+  {
+    label: "Site Audit",
+    prefix: "/site-audit",
+    items: [
+      { title: "New Site Audit", url: "/site-audit/new", icon: Network },
     ],
   },
 ];
