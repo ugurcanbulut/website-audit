@@ -13,6 +13,7 @@ import {
   type Finding,
 } from "@/lib/audit/findings";
 import { useReportView } from "@/components/report/report-mode";
+import { SuppressButton } from "@/components/report/suppress-button";
 import { cn } from "@/lib/utils";
 
 function getGrade(score: number): Grade {
@@ -28,9 +29,10 @@ interface CategoryDetailProps {
   score: number;
   issues: AuditIssue[];
   issueCount: { critical: number; warning: number; info: number };
+  scanId: string;
 }
 
-function RuleGroup({ finding }: { finding: Finding }) {
+function RuleGroup({ finding, scanId }: { finding: Finding; scanId: string }) {
   const isClient = useReportView() === "client";
   const [expanded, setExpanded] = useState(finding.count <= 3); // Auto-expand small groups
   const { severity, elements, helpUrl, wcagTags } = finding;
@@ -93,18 +95,23 @@ function RuleGroup({ finding }: { finding: Finding }) {
   }
 
   // Internal mode: expandable group with the full per-element drill-down.
+  // The expand toggle and the action buttons are siblings (no nested buttons).
   return (
     <div className="rounded-lg border">
-      {/* Rule header */}
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-start gap-3 p-3 text-left hover:bg-muted/50 transition-colors"
-        aria-expanded={expanded}
-      >
-        {expanded ? <ChevronDown className="size-4 mt-0.5 shrink-0" /> : <ChevronRight className="size-4 mt-0.5 shrink-0" />}
-        {headerBody}
-        {learnMore}
-      </button>
+      <div className="flex items-start gap-3 p-3">
+        <button
+          onClick={() => setExpanded(!expanded)}
+          className="flex min-w-0 flex-1 items-start gap-3 text-left"
+          aria-expanded={expanded}
+        >
+          {expanded ? <ChevronDown className="size-4 mt-0.5 shrink-0" /> : <ChevronRight className="size-4 mt-0.5 shrink-0" />}
+          {headerBody}
+        </button>
+        <div className="flex shrink-0 items-center gap-3">
+          {learnMore}
+          <SuppressButton scanId={scanId} ruleId={finding.ruleId} />
+        </div>
+      </div>
 
       {/* Element rows */}
       {expanded && (
@@ -190,7 +197,7 @@ function ElementRow({ issue }: { issue: AuditIssue }) {
   );
 }
 
-export function CategoryDetail({ category, score, issues, issueCount }: CategoryDetailProps) {
+export function CategoryDetail({ category, score, issues, issueCount, scanId }: CategoryDetailProps) {
   const [filter, setFilter] = useState<"all" | IssueSeverity>("all");
   const grade = getGrade(score);
   const label = CATEGORY_LABELS[category] ?? category;
@@ -239,7 +246,7 @@ export function CategoryDetail({ category, score, issues, issueCount }: Category
           <p className="text-sm text-muted-foreground py-6 text-center">No issues in this category.</p>
         ) : (
           findings.map((finding) => (
-            <RuleGroup key={finding.ruleId} finding={finding} />
+            <RuleGroup key={finding.ruleId} finding={finding} scanId={scanId} />
           ))
         )}
       </div>

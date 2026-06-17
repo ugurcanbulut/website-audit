@@ -272,6 +272,32 @@ export const categoryScoresRelations = relations(categoryScores, ({ one }) => ({
   }),
 }));
 
+// ── Suppressions ─────────────────────────────────────────────────────────────
+// Per-scan "ignore this finding" rules. A null elementSelector suppresses the
+// whole finding (all elements of the rule); a non-null one suppresses a single
+// element. Suppressed findings are hidden from the report AND excluded from
+// score recomputation (see lib/audit/scoring.ts + suppressions.ts).
+
+export const suppressions = pgTable('suppressions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  scanId: uuid('scan_id')
+    .notNull()
+    .references(() => scans.id, { onDelete: 'cascade' }),
+  ruleId: text('rule_id').notNull(),
+  elementSelector: text('element_selector'),
+  reason: text('reason'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+}, (t) => ({
+  scanIdIdx: index('suppressions_scan_id_idx').on(t.scanId),
+}));
+
+export const suppressionsRelations = relations(suppressions, ({ one }) => ({
+  scan: one(scans, {
+    fields: [suppressions.scanId],
+    references: [scans.id],
+  }),
+}));
+
 // ── Crawls ───────────────────────────────────────────────────────────────
 export const crawls = pgTable('crawls', {
   id: uuid('id').primaryKey().defaultRandom(),

@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
 import { scans, auditIssues, categoryScores } from "@/lib/db/schema";
 import type { AuditCategory, Grade } from "@/lib/types";
+import { loadSuppressions, makeSuppressionFilter } from "./suppressions";
 
 const SEVERITY_WEIGHTS = {
   critical: 15,
@@ -57,9 +58,30 @@ export async function calculateScores(
   scanId: string,
   lighthouseScores: Record<string, number> | null = null,
 ): Promise<void> {
-  const issues = await db.query.auditIssues.findMany({
+  // On a recompute (e.g. a suppression change) the caller has no Lighthouse
+  // scores to hand — recover them from the previously-stored category rows so
+  // perf/seo/best-practices don't silently fall back to deduction scoring.
+  if (lighthouseScores == null) {
+    const prior = await db.query.categoryScores.findMany({
+      where: eq(categoryScores.scanId, scanId),
+    });
+    const recovered: Record<string, number> = {};
+    for (const row of prior) {
+      if (row.lighthouseScore != null) recovered[row.category] = row.lighthouseScore;
+    }
+    if (Object.keys(recovered).length > 0) lighthouseScores = recovered;
+  }
+
+  // Clear prior scores so this is safe to re-run — both on the initial scan and
+  // every time a suppression is added/removed and scores are recomputed.
+  await db.delete(categoryScores).where(eq(categoryScores.scanId, scanId));
+
+  const allIssues = await db.query.auditIssues.findMany({
     where: eq(auditIssues.scanId, scanId),
   });
+  // Suppressed findings are excluded everywhere — including the score.
+  const isSuppressed = makeSuppressionFilter(await loadSuppressions(scanId));
+  const issues = allIssues.filter((i) => !isSuppressed(i));
 
   let weightedTotal = 0;
   let weightSum = 0;

@@ -44,6 +44,9 @@ import { DeleteScanButton } from "@/components/scan/delete-scan-button";
 import { SiteHeader } from "@/components/layout/site-header";
 import { ReportModeToggle } from "@/components/report/report-mode-toggle";
 import type { ReportView } from "@/components/report/report-mode";
+import { SuppressedFindings } from "@/components/report/suppressed-findings";
+import { loadSuppressions, makeSuppressionFilter } from "@/lib/audit/suppressions";
+import { groupFindings } from "@/lib/audit/findings";
 
 // ---------------------------------------------------------------------------
 // Score ring (Direction D) — compact header variant, no label
@@ -255,6 +258,13 @@ export default async function ScanDetailPage({ params, searchParams }: ScanDetai
     }
   }
 
+  // Split out suppressed findings: they're hidden from every report surface
+  // (the score was already recomputed without them — see scoring.ts). Internal
+  // view still surfaces them in a dedicated panel so they can be restored.
+  const isSuppressed = makeSuppressionFilter(await loadSuppressions(id));
+  const liveIssues = issues.filter((i) => !isSuppressed(i));
+  const suppressedFindings = groupFindings(issues.filter((i) => isSuppressed(i)));
+
   // Compute annotations per viewport
   const annotationsByViewport: Record<string, Annotation[]> = {};
   for (const vr of vpResultsRaw) {
@@ -263,7 +273,7 @@ export default async function ScanDetailPage({ params, searchParams }: ScanDetai
       | null;
     if (snapshot) {
       annotationsByViewport[vr.viewportName] = mapIssuesToAnnotations(
-        issues,
+        liveIssues,
         snapshot,
         vr.viewportName,
       );
@@ -337,9 +347,10 @@ export default async function ScanDetailPage({ params, searchParams }: ScanDetai
   });
   const previousScore = previousScan?.overallScore ?? null;
 
-  // Group issues by category
+  // Group issues by category (suppressed findings excluded — they're shown
+  // only in the dedicated internal panel).
   const issuesByCategory = new Map<AuditCategory, AuditIssue[]>();
-  for (const issue of issues) {
+  for (const issue of liveIssues) {
     const list = issuesByCategory.get(issue.category) ?? [];
     list.push(issue);
     issuesByCategory.set(issue.category, list);
@@ -367,21 +378,25 @@ export default async function ScanDetailPage({ params, searchParams }: ScanDetai
         lighthouseScores={lighthouseScores}
         browserEngine={scan.browserEngine ?? undefined}
       />
+      {view === "internal" && (
+        <SuppressedFindings scanId={id} findings={suppressedFindings} />
+      )}
       <IssuesByCategory
         categoryScores={catScores}
         issuesByCategory={issuesByCategoryObj}
+        scanId={id}
       />
     </div>
   );
 
-  const complianceContent = <ComplianceTab issues={issues} />;
+  const complianceContent = <ComplianceTab issues={liveIssues} />;
 
   const screenshotsContent = <ScreenshotCompare viewportResults={vpResults} />;
 
   const viewportContent = (
     <ViewportTabs
       viewportResults={vpResults}
-      issues={issues}
+      issues={liveIssues}
       annotationsByViewport={annotationsByViewport}
     />
   );
@@ -425,14 +440,14 @@ export default async function ScanDetailPage({ params, searchParams }: ScanDetai
 
         <ReportTabs
           view={view}
-          issuesCount={issues.length}
+          issuesCount={liveIssues.length}
           summaryContent={
             <ExecutiveOverview
               overallScore={overallScore}
               overallGrade={overallGrade}
               scanUrl={scan.url}
               scanCreatedAt={scan.createdAt.toISOString()}
-              issues={issues}
+              issues={liveIssues}
               categoryScores={catScores}
               previousScore={previousScore}
               previousScanId={previousScan?.id}

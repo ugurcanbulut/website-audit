@@ -16,12 +16,14 @@ interface IssuesByCategoryProps {
   categoryScores: CategoryScore[];
   issuesByCategory: Record<string, AuditIssue[]>;
   initialCategory?: string;
+  scanId: string;
 }
 
 export function IssuesByCategory({
   categoryScores,
   issuesByCategory,
   initialCategory,
+  scanId,
 }: IssuesByCategoryProps) {
   if (categoryScores.length === 0) {
     return (
@@ -75,6 +77,7 @@ export function IssuesByCategory({
               score={cs.score}
               issues={issues}
               issueCount={cs.issueCount}
+              scanId={scanId}
             />
           </TabsContent>
         );
