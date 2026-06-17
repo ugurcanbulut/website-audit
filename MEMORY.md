@@ -25,7 +25,8 @@
 - PARKED (parked, not trashed): all SaaS thinking in [`docs/PRODUCT_VISION.md`](docs/PRODUCT_VISION.md) — pricing tiers, scale-ceiling A/B/C/D, public demo funnel, OSS-vs-closed, SaaS positioning. **That doc still shows the old SaaS framing and needs a rewrite to the internal-tool thesis (parked task).**
 - New compass: **"make our team's audit-at-delivery faster + nothing slips."** Report serves TWO audiences: internal (raw/full — every element + fix) AND client-facing (clean + branded → white-label PDF matters).
 - Pain it replaces (user's words): axe/a11y was **never** run; Lighthouse + Screaming Frog run **manually**; UI checked **by eyeball, page-by-page, sometimes BrowserStack across devices** → things slipped. ⇒ #1 leverage = multi-viewport/cross-device visual capture + objective UI-defect surface; a11y (axe/WCAG) is a 0→1 gap + compliance story.
-- Re-prioritized roadmap: **Tier1** report quality + two-mode/white-label PDF + whole-site crawl + per-client workspace · **Tier1.5** ignore/suppress (also the internal→client filter) · **Tier2** before/after baseline · **Tier3** pino logging, Slack/email, Jira export. **Dropped (SaaS-only):** monetization, demo funnel, SSO, public API, budget caps, money-back, Prometheus/OTel, scheduled scans.
+- Re-prioritized roadmap: **Tier1** report quality + whole-site crawl · **Tier1.5** ignore/suppress (also the internal→client filter) · **Tier2** before/after baseline · **Tier3** pino logging, Slack/email, Jira export. **Dropped (SaaS-only):** monetization, demo funnel, SSO, public API, budget caps, money-back, Prometheus/OTel, scheduled scans.
+- **Dropped by user (2026-06-17):** **white-label / two-mode PDF** and **per-client workspace** — explicitly removed from the roadmap; do NOT re-suggest as next-up. (Sprint-5 multi-tenancy tables still exist in the DB; just no client-scoping UI work planned. Single PDF route `/api/scans/[id]/pdf` stays as-is.)
 
 ### ✅ Demo to management (2026-06-09/10) — DONE, went well
 - Live end-to-end demo (URL → scan → report) to decision-makers, on a **fresh-clone machine** (had no node_modules / .env / Playwright browsers).
@@ -126,7 +127,7 @@ Deps installed (`2eb7661`: pino, pino-pretty, @sentry/nextjs, @sentry/node, @bul
 
 ### Remaining (per `docs/MASTER_AUDIT_2026.md` §11)
 - **Sprint 6 (rest)** — Prometheus metrics, OpenTelemetry, full Docker healthchecks, backup runbook.
-- **Sprint 7 (parallel)** — enterprise feature parity: scheduled scans, webhooks, Jira integration, GitHub Action template, email/Slack, budget caps, historical trend chart, ignore/suppress rules, white-label PDF, public API docs.
+- **Sprint 7 (parallel)** — enterprise feature parity: scheduled scans, webhooks, Jira integration, GitHub Action template, email/Slack, budget caps, historical trend chart, ignore/suppress rules, public API docs. *(white-label PDF dropped by user 2026-06-17 — see §1.)*
 - **Sprint 7+ (Testing)** — Vitest unit tests for `lib/`, Playwright E2E for scan/batch/crawl, CI pipeline, pre-commit hooks, self-dogfooding. **User said: "yazariz, oncelik degil, listede kalsin."**
 
 ### Open user-owned task
