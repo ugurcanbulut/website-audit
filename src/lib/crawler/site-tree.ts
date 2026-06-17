@@ -89,3 +89,18 @@ export function buildSiteTree(pages: Array<{
 
   return root;
 }
+
+/**
+ * Every crawled page URL within a node's subtree (the node itself included).
+ * Used by the Site Audit tree to resolve a "select this whole branch" toggle
+ * into the concrete list of URLs to audit.
+ */
+export function urlsInSubtree(node: SiteTreeNode): string[] {
+  const urls: string[] = [];
+  const walk = (n: SiteTreeNode) => {
+    if (n.url) urls.push(n.url);
+    for (const child of n.children) walk(child);
+  };
+  walk(node);
+  return urls;
+}

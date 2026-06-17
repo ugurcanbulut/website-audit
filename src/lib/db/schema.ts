@@ -123,6 +123,8 @@ export const scans = pgTable('scans', {
   }),
   url: text('url').notNull(),
   batchId: uuid('batch_id').references(() => scanBatches.id, { onDelete: 'cascade' }),
+  // Set when this scan is one page of a whole-site audit (Phase 3).
+  siteAuditId: uuid('site_audit_id').references(() => siteAudits.id, { onDelete: 'cascade' }),
   status: text('status').notNull().default('pending'),
   aiEnabled: boolean('ai_enabled').notNull().default(false),
   aiProvider: text('ai_provider'),
@@ -135,6 +137,7 @@ export const scans = pgTable('scans', {
   completedAt: timestamp('completed_at'),
 }, (t) => ({
   batchIdIdx: index('scans_batch_id_idx').on(t.batchId),
+  siteAuditIdIdx: index('scans_site_audit_id_idx').on(t.siteAuditId),
   createdAtIdx: index('scans_created_at_idx').on(sql`${t.createdAt} DESC`),
   statusIdx: index('scans_status_idx').on(t.status),
   workspaceIdIdx: index('scans_workspace_id_idx').on(t.workspaceId),
@@ -362,6 +365,40 @@ export const crawlPagesRelations = relations(crawlPages, ({ one }) => ({
     fields: [crawlPages.crawlId],
     references: [crawls.id],
   }),
+}));
+
+// ── Site Audits (Phase 3) ──────────────────────────────────────────────────
+// A whole-site audit: discover URLs via a crawl, the user selects pages from
+// the site tree, then a full scan runs per selected URL (each scan carries
+// siteAuditId). The report aggregates across those scans.
+
+export const siteAudits = pgTable('site_audits', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  workspaceId: uuid('workspace_id').references(() => workspaces.id, {
+    onDelete: 'cascade',
+  }),
+  createdByUserId: uuid('created_by_user_id').references(() => users.id, {
+    onDelete: 'set null',
+  }),
+  seedUrl: text('seed_url').notNull(),
+  crawlId: uuid('crawl_id').references(() => crawls.id, { onDelete: 'set null' }),
+  // pending → discovering → selecting → auditing → completed | failed
+  status: text('status').notNull().default('pending'),
+  selectedUrls: jsonb('selected_urls'), // string[] chosen from the site tree
+  totalPages: integer('total_pages').default(0),
+  pagesCompleted: integer('pages_completed').default(0),
+  overallScore: integer('overall_score'),
+  overallGrade: text('overall_grade'),
+  error: text('error'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  completedAt: timestamp('completed_at'),
+}, (t) => ({
+  createdAtIdx: index('site_audits_created_at_idx').on(sql`${t.createdAt} DESC`),
+  workspaceIdIdx: index('site_audits_workspace_id_idx').on(t.workspaceId),
+}));
+
+export const siteAuditsRelations = relations(siteAudits, ({ many }) => ({
+  scans: many(scans),
 }));
 
 // ── AI usage tracking ────────────────────────────────────────────────────────
