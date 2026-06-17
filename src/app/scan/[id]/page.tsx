@@ -34,7 +34,7 @@ import {
   Card,
   CardContent,
 } from "@/components/ui/card";
-import { XCircle, FileDown } from "lucide-react";
+import { XCircle, FileDown, GitCompare } from "lucide-react";
 import Link from "next/link";
 import { buttonVariants } from "@/lib/button-variants";
 import { cn } from "@/lib/utils";
@@ -426,6 +426,15 @@ export default async function ScanDetailPage({ params, searchParams }: ScanDetai
           </div>
           <div className="flex items-center gap-2">
             <ReportModeToggle current={view} />
+            {previousScan && (
+              <Link
+                href={`/scan/${id}/compare`}
+                className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+              >
+                <GitCompare className="size-4 mr-1" />
+                Compare
+              </Link>
+            )}
             <a
               href={`/api/scans/${id}/pdf${view === "client" ? "?view=client" : ""}`}
               download
