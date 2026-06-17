@@ -11,7 +11,7 @@ import { DEVICE_PRESETS } from "@/lib/scanner/devices";
 
 // Runners
 import { processAxeResults } from "./runners/axe-runner";
-import { runLighthouse } from "./runners/lighthouse-runner";
+import { runLighthouseMedian } from "./runners/lighthouse-runner";
 import { runHtmlHint } from "./runners/html-runner";
 import { runCssAnalysis } from "./runners/css-runner";
 import { runSecurityChecks } from "./runners/security-runner";
@@ -199,14 +199,30 @@ export async function runAuditEngine(
     // clobber ("The start lh:runner:gather performance mark has not been
     // set"). True parallelism would require either two Node processes or a
     // patched Lighthouse that namespaces its marks — out of scope here.
+
+    // Number of Lighthouse runs per form factor; the median is kept (run-to-run
+    // variance / cold-cache mitigation). Default 3; LIGHTHOUSE_RUNS=1 to disable
+    // (e.g. large site audits). See lighthouse-runner.runLighthouseMedian.
+    const lhRuns = Math.max(1, Number(process.env.LIGHTHOUSE_RUNS ?? 3) || 3);
+
+    // Quiesce: the capture phase (5 viewport contexts) has just closed; give the
+    // host a beat to settle so Lighthouse measures a calmer machine. The bigger
+    // contention lever (don't co-locate the worker with the dev server / other
+    // load) is operational — for stable scores run the worker on its own host.
+    await new Promise((r) => setTimeout(r, 750));
+
     try {
-      console.log(`Running Lighthouse Desktop on ${url}...`);
-      const lhDesktop = await runLighthouse({
+      console.log(`Running Lighthouse Desktop on ${url} (median of ${lhRuns})...`);
+      const lhDesktop = await runLighthouseMedian({
         url,
         debuggingPort: session.debuggingPort,
         categories: ["performance", "accessibility", "best-practices", "seo"],
         formFactor: "desktop",
-      });
+      }, lhRuns);
+      const benchIdx = (lhDesktop.lhr as { environment?: { benchmarkIndex?: number } })?.environment?.benchmarkIndex;
+      if (benchIdx != null && benchIdx < 1500) {
+        console.warn(`Lighthouse host CPU is slow/contended (benchmarkIndex=${Math.round(benchIdx)}); performance scores will read conservative.`);
+      }
 
       lighthouseScores = {};
       if (lhDesktop.categoryScores.performance !== undefined)
@@ -240,13 +256,13 @@ export async function runAuditEngine(
     }
 
     try {
-      console.log(`Running Lighthouse Mobile on ${url}...`);
-      const lhMobile = await runLighthouse({
+      console.log(`Running Lighthouse Mobile on ${url} (median of ${lhRuns})...`);
+      const lhMobile = await runLighthouseMedian({
         url,
         debuggingPort: session.debuggingPort,
         categories: ["performance", "accessibility", "best-practices", "seo"],
         formFactor: "mobile",
-      });
+      }, lhRuns);
       lighthouseData.mobile = lhMobile.lhr;
       console.log(
         `Lighthouse Mobile: perf=${lhMobile.categoryScores.performance}`,

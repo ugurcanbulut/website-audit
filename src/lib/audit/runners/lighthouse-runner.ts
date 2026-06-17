@@ -189,3 +189,32 @@ export async function runLighthouse(
 
   return { issues, categoryScores, lhr };
 }
+
+/**
+ * Run Lighthouse `runs` times and return the **median** run by performance
+ * score. Lighthouse's simulated scores vary run-to-run (cold cache/connection
+ * on the first run, host load), so a single run is noisy — the median is the
+ * Lighthouse/LHCI-recommended way to get a representative number (not the
+ * flattering best run). Returns one real run's full output (categories/issues/
+ * lhr stay internally consistent), not a synthetic blend.
+ *
+ * `runs` defaults to 3; set LIGHTHOUSE_RUNS=1 to disable (e.g. for large site
+ * audits where 3× per page is too slow).
+ */
+export async function runLighthouseMedian(
+  input: LighthouseRunnerInput,
+  runs = 3,
+): Promise<LighthouseRunnerOutput> {
+  const n = Math.max(1, Math.floor(runs));
+  const results: LighthouseRunnerOutput[] = [];
+  for (let i = 0; i < n; i++) {
+    results.push(await runLighthouse(input));
+  }
+  if (results.length === 1) return results[0];
+
+  // Median by performance score; lower-half element on an even count.
+  const ranked = results
+    .map((r) => ({ r, perf: r.categoryScores.performance ?? -1 }))
+    .sort((a, b) => a.perf - b.perf);
+  return ranked[Math.floor((ranked.length - 1) / 2)].r;
+}
