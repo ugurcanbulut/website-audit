@@ -2,7 +2,7 @@
 
 > Persistent context for Claude Code, synced via git so any machine (laptop, desktop) gets the same picture. Loaded automatically through `CLAUDE.md`.
 
-**Last updated:** 2026-06-16
+**Last updated:** 2026-06-17
 **Repo:** github.com/ugurcanbulut/website-audit
 **Branch:** main
 
@@ -37,15 +37,16 @@
 2. **`[object Object]` error** (`scan-form.tsx`) — 400s return an error OBJECT (Zod fieldErrors / UrlGuard); now flattened to a real message.
 3. **SSE heartbeat + cancel** (`api/scans/[id]/events/route.ts`) — 15s `: ping` keeps the stream warm through the audit stall (kills "Connection lost"); `cancel()` releases the redis subscription (leak fix); `X-Accel-Buffering: no`.
 
-### Demo punch-list — NOT applied (deferred; all low-risk; from the assessment workflow)
-- **#6 progress-creep** (HIGH for live demos): bar visibly pauses 35→65% during Lighthouse (looks hung). Client-only creep in `use-scan-progress.ts` (+ optional label `scan-worker.ts:136`).
-- **#9** 4th Lighthouse gauge missing (Accessibility never captured — 3/4 dials): widen type `scan/[id]/page.tsx:218`, read `cats.accessibility`.
-- **#7** stale "GPT-4o" label → code runs gpt-5 (`scan-form.tsx:261`, `batch-scan-form.tsx:218`, `settings/page.tsx`).
-- **#8** activity-log polish (`scan-progress.tsx`): friendly empty state + newest-first.
-- **#5** dark-mode score badge light-only (`ui-constants.ts:59-65`) — or just keep light mode.
+### Demo punch-list — DONE (`29c683f`, 2026-06-17), verified live on americas.land
+- **#9 DONE** — 4th Lighthouse gauge (Accessibility) now renders (was 3/4). Root cause was deeper than the note: Lighthouse was never *run* for accessibility — `engine.ts` passed `categories: ["performance","best-practices","seo"]` for both desktop+mobile, so `cats.accessibility` was always null. Fix: add `"accessibility"` to both runs **and** read `cats.accessibility` in `scan/[id]/page.tsx` (both dual + legacy blocks). Lighthouse a11y *issues* are dropped in the engine loop (`if (issue.category === "accessibility") continue;`) — axe-core stays the authoritative a11y source (category `"accessibility"`), no double-count. Verified: gauge=84, axe a11y issues=800 intact, 0 `lighthouse-*` rows in the accessibility category.
+- **#6 DONE** — progress-creep. `use-scan-progress.ts` now trickles a `displayProgress` toward a soft ceiling (`min(progress+18, 92)`, ease 0.06, 600ms) and returns `Math.max(progress, displayProgress)` — real events always snap it up, never fakes 100. The 35→65 audit stall measured **~80s** on americas.land (was a frozen bar). Worker label (`scan-worker.ts:136`) now reads "Running audit engine (axe-core, Lighthouse, HTML/CSS)…".
+- **#7 DONE** — "GPT-4o"→"GPT-5" in `scan-form.tsx` (the 2 spots; batch form + settings already said GPT-5).
+- **#8** — already shipped in the redesign: `scan-progress.tsx` has newest-first activity log (`.slice().reverse()`) + "Waiting for events…" empty state. No change needed.
+- **#5** moot — light-only theme since the redesign (no dark-mode score badge).
 - **Not a bug:** Summary "Accessibility 0 / UX Quality 0" are **real rule-based scores** crushed by 707 axe contrast items (mostly axe "[Needs Review]" incompletes) + touch-target issues. Whether "needs-review" should floor a category = post-demo scoring-methodology question.
 
 ### Last shipped commits (origin/main)
+- `29c683f` *(2026-06-17)* fix: demo punch-list — Lighthouse a11y gauge (#9), progress creep (#6), GPT-5 label (#7). Verified live on americas.land (gauge=84, ~80s audit stall now trickles, no a11y double-count). See punch-list section above for detail.
 - `86b64aa` *(2026-06-16)* fix: viewport tabs crash — sanitize PhotoSwipe gallery id. **Root cause:** viewport names carry a `"` (e.g. `MacBook Pro 14"`); `viewport-tabs.tsx` built the gallery id with only `\s+`→`-`, so the `"` leaked into PhotoSwipe's `querySelectorAll("#"+id)` → invalid CSS selector → `SyntaxError` in lightbox `init()` → crashed the tab subtree ("This page couldn't load"). **Fix:** `toSafeId()` in `screenshot-gallery.tsx` slugifies the id (strip non-`[A-Za-z0-9_-]`, force non-digit start) for both the DOM `id` and the selector — protects all 3 call sites. Verified in prod build via Playwright (all device tabs switch, zero console errors).
 - `29b8077` *(2026-06-10)* feat: REALSTACK redesign (Direction D) — top nav, orange brand, light-only theme
 - *(2026-06-10)* `7ae1e84` fix: demo polish — radar `oklch`→`var`, scan-form `[object Object]`, SSE heartbeat+cancel
