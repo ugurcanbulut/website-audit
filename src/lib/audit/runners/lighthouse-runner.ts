@@ -84,9 +84,15 @@ export async function runLighthouse(
     screenEmulation: input.formFactor === "mobile"
       ? { mobile: true, width: 412, height: 823, deviceScaleFactor: 1.75 }
       : { mobile: false, width: 1350, height: 940, deviceScaleFactor: 1 },
+    // Throttling must be set explicitly per form factor. If left undefined,
+    // Lighthouse applies its DEFAULT simulated throttling — which is
+    // mobile-grade (4× CPU slowdown + slow-4G) — even on a desktop run, which
+    // crushes the desktop performance score (~33 vs Chrome's "Desktop" preset
+    // ~77). Desktop uses Lighthouse's desktopDense4G profile: no CPU slowdown,
+    // 40ms RTT, 10 Mbps — matching DevTools' Desktop preset.
     throttling: input.formFactor === "mobile"
       ? { cpuSlowdownMultiplier: 4, downloadThroughputKbps: 1600, uploadThroughputKbps: 750, rttMs: 150 }
-      : undefined,
+      : { cpuSlowdownMultiplier: 1, rttMs: 40, throughputKbps: 10240, requestLatencyMs: 0, downloadThroughputKbps: 0, uploadThroughputKbps: 0 },
   });
 
   if (!result) {
