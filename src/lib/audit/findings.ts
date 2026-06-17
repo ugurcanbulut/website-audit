@@ -126,6 +126,71 @@ export function rankFindings(findings: Finding[], limit?: number): Finding[] {
 }
 
 /**
+ * A finding rolled up across every page of a whole-site audit: how many pages
+ * it appears on and the total affected elements site-wide.
+ */
+export interface SiteFinding {
+  ruleId: string;
+  category: AuditCategory;
+  title: string;
+  description: string;
+  severity: IssueSeverity;
+  helpUrl?: string;
+  wcagTags?: string[];
+  recommendation?: string;
+  /** Distinct pages (scans) where the rule fired. */
+  pageCount: number;
+  /** Total affected element instances across all pages. */
+  elementCount: number;
+  impact: number;
+}
+
+/**
+ * Merge per-page findings (one Finding[] per audited page) into site-wide
+ * findings keyed by ruleId. The representative is the highest-severity instance
+ * across pages. Sorted worst-severity first, then by spread (pages affected),
+ * then by total elements — so "critical issue on every page" floats to the top.
+ */
+export function mergeSiteFindings(perPage: Finding[][]): SiteFinding[] {
+  const map = new Map<string, { rep: Finding; pages: number; elements: number }>();
+  for (const findings of perPage) {
+    for (const f of findings) {
+      const entry = map.get(f.ruleId);
+      if (entry) {
+        entry.pages += 1;
+        entry.elements += f.count;
+        if ((SEVERITY_RANK[f.severity] ?? 9) < (SEVERITY_RANK[entry.rep.severity] ?? 9)) {
+          entry.rep = f;
+        }
+      } else {
+        map.set(f.ruleId, { rep: f, pages: 1, elements: f.count });
+      }
+    }
+  }
+
+  return Array.from(map.values())
+    .map(({ rep, pages, elements }) => ({
+      ruleId: rep.ruleId,
+      category: rep.category,
+      title: rep.title,
+      description: rep.description,
+      severity: rep.severity,
+      helpUrl: rep.helpUrl,
+      wcagTags: rep.wcagTags,
+      recommendation: rep.recommendation,
+      pageCount: pages,
+      elementCount: elements,
+      impact: (SEVERITY_WEIGHT[rep.severity] ?? 0) * elements,
+    }))
+    .sort(
+      (a, b) =>
+        (SEVERITY_RANK[a.severity] ?? 9) - (SEVERITY_RANK[b.severity] ?? 9) ||
+        b.pageCount - a.pageCount ||
+        b.elementCount - a.elementCount,
+    );
+}
+
+/**
  * A concise, measurable impact label for a single affected element, pulled from
  * the runner's `details` (e.g. a 30×30px touch target, a Lighthouse
  * displayValue, a failing header value). Returns undefined when the rule has no

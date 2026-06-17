@@ -4,17 +4,21 @@ import { notFound } from "next/navigation";
 import { eq, and, inArray } from "drizzle-orm";
 import { Network, XCircle, ExternalLink } from "lucide-react";
 import { db } from "@/lib/db";
-import { siteAudits, crawls, crawlPages, scans } from "@/lib/db/schema";
+import { siteAudits, crawls, crawlPages, scans, auditIssues, suppressions } from "@/lib/db/schema";
 import { SiteHeader } from "@/components/layout/site-header";
 import { PageHead } from "@/components/layout/page-head";
 import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { buildSiteTree } from "@/lib/crawler/site-tree";
 import { SiteTreeSelect } from "@/components/site-audit/site-tree-select";
 import { DiscoveryProgress } from "@/components/site-audit/discovery-progress";
 import { SiteAuditProgress } from "@/components/site-audit/site-audit-progress";
 import { GradeChip } from "@/components/dashboard/grade-chip";
-import { getGradeFromScore, getScoreHexColor } from "@/lib/ui-constants";
-import type { Grade } from "@/lib/types";
+import { getGradeFromScore, getScoreHexColor, SEVERITY_COLORS, CATEGORY_LABELS } from "@/lib/ui-constants";
+import { groupFindings, mergeSiteFindings } from "@/lib/audit/findings";
+import { makeSuppressionFilter, type SuppressionRule } from "@/lib/audit/suppressions";
+import { cn } from "@/lib/utils";
+import type { Grade, AuditIssue, AuditCategory, IssueSeverity } from "@/lib/types";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -165,10 +169,49 @@ export default async function SiteAuditPage({ params }: PageProps) {
     );
   }
 
-  // ── completed: aggregated rollup (3c baseline; 3d adds site-wide findings) ─
+  // ── completed: aggregated rollup ────────────────────────────────────────
   const ranked = [...completed].sort(
     (a, b) => (a.overallScore ?? 0) - (b.overallScore ?? 0),
   );
+
+  // Site-wide finding rollup: group findings within each page, then merge by
+  // rule across pages (suppressed issues excluded, as everywhere).
+  const completedIds = completed.map((s) => s.id);
+  const [issuesRaw, suppRaw] = completedIds.length
+    ? await Promise.all([
+        db.query.auditIssues.findMany({ where: inArray(auditIssues.scanId, completedIds) }),
+        db.query.suppressions.findMany({ where: inArray(suppressions.scanId, completedIds) }),
+      ])
+    : [[], []];
+
+  const issuesByScan = new Map<string, AuditIssue[]>();
+  for (const i of issuesRaw) {
+    const list = issuesByScan.get(i.scanId) ?? [];
+    list.push({
+      id: i.id,
+      category: i.category as AuditCategory,
+      severity: i.severity as IssueSeverity,
+      ruleId: i.ruleId,
+      title: i.title,
+      description: i.description,
+      elementSelector: i.elementSelector ?? undefined,
+      elementHtml: i.elementHtml ?? undefined,
+      recommendation: i.recommendation ?? undefined,
+      details: (i.details as Record<string, unknown> | null) ?? undefined,
+    });
+    issuesByScan.set(i.scanId, list);
+  }
+  const suppByScan = new Map<string, SuppressionRule[]>();
+  for (const s of suppRaw) {
+    const list = suppByScan.get(s.scanId) ?? [];
+    list.push({ ruleId: s.ruleId, elementSelector: s.elementSelector ?? null });
+    suppByScan.set(s.scanId, list);
+  }
+  const perPageFindings = completedIds.map((sid) => {
+    const isSup = makeSuppressionFilter(suppByScan.get(sid) ?? []);
+    return groupFindings((issuesByScan.get(sid) ?? []).filter((i) => !isSup(i)));
+  });
+  const siteFindings = mergeSiteFindings(perPageFindings);
 
   return shell(
     <div className="flex flex-col gap-5">
@@ -190,6 +233,47 @@ export default async function SiteAuditPage({ params }: PageProps) {
             </p>
           </div>
         </CardContent>
+      </Card>
+
+      <Card className="overflow-hidden p-0">
+        <div className="border-b border-border px-4 py-3 text-sm font-semibold">
+          Site-wide findings{siteFindings.length > 0 ? ` · ${siteFindings.length}` : ""}
+        </div>
+        {siteFindings.length === 0 ? (
+          <p className="px-4 py-6 text-sm text-muted-foreground">
+            No issues found across the audited pages.
+          </p>
+        ) : (
+          <ul className="divide-y">
+            {siteFindings.slice(0, 40).map((f) => (
+              <li key={f.ruleId} className="px-4 py-2.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span
+                    className={cn(
+                      "inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium",
+                      (SEVERITY_COLORS[f.severity] ?? SEVERITY_COLORS.info).badge,
+                    )}
+                  >
+                    {f.severity}
+                  </span>
+                  <span className="text-sm font-semibold">{f.title}</span>
+                  <Badge variant="secondary" className="text-xs">
+                    {CATEGORY_LABELS[f.category] ?? f.category}
+                  </Badge>
+                  <span className="ml-auto text-xs font-semibold tabular-nums text-muted-foreground">
+                    {f.pageCount} page{f.pageCount === 1 ? "" : "s"} · {f.elementCount} element
+                    {f.elementCount === 1 ? "" : "s"}
+                  </span>
+                </div>
+                {f.recommendation && (
+                  <p className="mt-0.5 line-clamp-1 text-sm text-muted-foreground">
+                    {f.recommendation}
+                  </p>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
       </Card>
 
       <Card className="overflow-hidden p-0">
