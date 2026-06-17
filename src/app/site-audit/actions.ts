@@ -4,9 +4,11 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { db } from "@/lib/db";
-import { siteAudits, crawls } from "@/lib/db/schema";
+import { siteAudits, crawls, scans } from "@/lib/db/schema";
 import { addCrawlJob } from "@/lib/queue/crawl-queue";
+import { addScanJob } from "@/lib/queue/scan-queue";
 import { DEFAULT_CRAWL_CONFIG } from "@/lib/crawler/types";
+import { getDevicesByNames, DEFAULT_DEVICES } from "@/lib/scanner/devices";
 import { assertScanTargetUrl, UrlGuardError } from "@/lib/security/url-guard";
 
 /**
@@ -52,22 +54,57 @@ export async function createSiteAudit(
 }
 
 /**
- * Record the pages the user selected from the site tree and move the audit into
- * the auditing phase. The scan fan-out is wired in Phase 3c.
+ * Record the selected pages and fan out one full scan per URL, each tagged with
+ * siteAuditId. Concurrency is handled by the scan queue/worker — we just enqueue
+ * the batch. Scans run rule-based (AI off) to keep a many-page audit affordable.
  */
 export async function submitSelection(
   siteAuditId: string,
   selectedUrls: string[],
 ): Promise<{ error?: string }> {
   if (selectedUrls.length === 0) return { error: "Select at least one page." };
+
+  // De-dupe; the tree can surface the same URL twice in odd cases.
+  const urls = Array.from(new Set(selectedUrls));
+
+  // Same device set as a normal scan.
+  const resolvedDevices = getDevicesByNames(DEFAULT_DEVICES);
+  const viewportConfigs = resolvedDevices.map((d) => ({
+    name: d.name,
+    width: d.width,
+    height: d.height,
+    type: d.type,
+  }));
+
+  const rows = await db
+    .insert(scans)
+    .values(
+      urls.map((url) => ({
+        url,
+        viewports: viewportConfigs,
+        browserEngine: "chromium" as const,
+        aiEnabled: false,
+        siteAuditId,
+      })),
+    )
+    .returning();
+
   await db
     .update(siteAudits)
-    .set({
-      selectedUrls,
-      totalPages: selectedUrls.length,
-      status: "auditing",
-    })
+    .set({ selectedUrls: urls, totalPages: rows.length, pagesCompleted: 0, status: "auditing" })
     .where(eq(siteAudits.id, siteAuditId));
+
+  for (const row of rows) {
+    await addScanJob({
+      scanId: row.id,
+      url: row.url,
+      viewports: viewportConfigs,
+      devices: resolvedDevices,
+      browserEngine: "chromium",
+      aiEnabled: false,
+    });
+  }
+
   revalidatePath(`/site-audit/${siteAuditId}`);
   return {};
 }

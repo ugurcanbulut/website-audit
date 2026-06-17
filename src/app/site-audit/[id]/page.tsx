@@ -1,15 +1,20 @@
 import type { ReactNode } from "react";
+import Link from "next/link";
 import { notFound } from "next/navigation";
 import { eq, and, inArray } from "drizzle-orm";
-import { Network, XCircle } from "lucide-react";
+import { Network, XCircle, ExternalLink } from "lucide-react";
 import { db } from "@/lib/db";
-import { siteAudits, crawls, crawlPages } from "@/lib/db/schema";
+import { siteAudits, crawls, crawlPages, scans } from "@/lib/db/schema";
 import { SiteHeader } from "@/components/layout/site-header";
 import { PageHead } from "@/components/layout/page-head";
 import { Card, CardContent } from "@/components/ui/card";
 import { buildSiteTree } from "@/lib/crawler/site-tree";
 import { SiteTreeSelect } from "@/components/site-audit/site-tree-select";
 import { DiscoveryProgress } from "@/components/site-audit/discovery-progress";
+import { SiteAuditProgress } from "@/components/site-audit/site-audit-progress";
+import { GradeChip } from "@/components/dashboard/grade-chip";
+import { getGradeFromScore, getScoreHexColor } from "@/lib/ui-constants";
+import type { Grade } from "@/lib/types";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -115,31 +120,109 @@ export default async function SiteAuditPage({ params }: PageProps) {
     );
   }
 
-  // auditing / completed — per-page scans + aggregated report land in 3c/3d.
-  const selected = (audit.selectedUrls as string[] | null) ?? [];
+  // ── auditing / completed: per-page scans ────────────────────────────────
+  const pageScans = await db.query.scans.findMany({
+    where: eq(scans.siteAuditId, id),
+  });
+  const finished = pageScans.filter(
+    (s) => s.status === "completed" || s.status === "failed",
+  );
+  const completed = pageScans.filter((s) => s.status === "completed");
+  const failedCount = pageScans.filter((s) => s.status === "failed").length;
+
+  // Roll up the site score from the completed page scans (computed here so the
+  // render uses fresh values, not the row read before the update below).
+  const scored = completed.filter((s) => s.overallScore != null);
+  const score = scored.length
+    ? Math.round(scored.reduce((n, s) => n + (s.overallScore ?? 0), 0) / scored.length)
+    : 0;
+  const grade: Grade = getGradeFromScore(score);
+
+  // Lazy completion: once every page scan has finished, persist the rollup and
+  // mark the audit complete.
+  if (
+    status === "auditing" &&
+    pageScans.length > 0 &&
+    finished.length === pageScans.length
+  ) {
+    await db
+      .update(siteAudits)
+      .set({
+        status: "completed",
+        overallScore: score,
+        overallGrade: grade,
+        pagesCompleted: completed.length,
+        completedAt: new Date(),
+      })
+      .where(eq(siteAudits.id, id));
+    status = "completed";
+  }
+
+  if (status === "auditing") {
+    return shell(
+      <SiteAuditProgress done={finished.length} total={pageScans.length} failed={failedCount} />,
+      "Auditing the selected pages.",
+    );
+  }
+
+  // ── completed: aggregated rollup (3c baseline; 3d adds site-wide findings) ─
+  const ranked = [...completed].sort(
+    (a, b) => (a.overallScore ?? 0) - (b.overallScore ?? 0),
+  );
+
   return shell(
-    <Card>
-      <CardContent className="py-8">
-        <p className="text-base font-semibold">
-          {audit.totalPages} page{audit.totalPages === 1 ? "" : "s"} queued for audit
-        </p>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Per-page scanning and the aggregated site report are wired up next.
-        </p>
-        {selected.length > 0 && (
-          <ul className="mt-4 space-y-1">
-            {selected.slice(0, 20).map((u) => (
-              <li key={u} className="truncate font-mono text-xs text-muted-foreground">
-                {u}
-              </li>
-            ))}
-            {selected.length > 20 && (
-              <li className="text-xs text-muted-foreground">…and {selected.length - 20} more</li>
-            )}
-          </ul>
-        )}
-      </CardContent>
-    </Card>,
+    <div className="flex flex-col gap-5">
+      <Card>
+        <CardContent className="flex flex-wrap items-center gap-5 py-6">
+          <div className="flex items-center gap-3">
+            <span
+              className="text-[44px] font-extrabold leading-none tabular-nums"
+              style={{ color: getScoreHexColor(score) }}
+            >
+              {score}
+            </span>
+            <GradeChip grade={grade} size={32} />
+          </div>
+          <div>
+            <p className="text-base font-semibold">Site score (avg of {completed.length} pages)</p>
+            <p className="text-sm text-muted-foreground">
+              {completed.length} audited{failedCount > 0 ? ` · ${failedCount} failed` : ""}
+            </p>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card className="overflow-hidden p-0">
+        <div className="border-b border-border px-4 py-3 text-sm font-semibold">
+          Pages — worst first
+        </div>
+        <ul className="divide-y">
+          {ranked.map((s) => (
+            <li key={s.id} className="flex items-center justify-between gap-3 px-4 py-2.5">
+              <div className="min-w-0">
+                <span
+                  className="mr-2 inline-block w-9 text-right font-bold tabular-nums"
+                  style={{ color: getScoreHexColor(s.overallScore ?? 0) }}
+                >
+                  {s.overallScore ?? "—"}
+                </span>
+                <span className="truncate font-mono text-sm text-muted-foreground">
+                  {(() => {
+                    try { return new URL(s.url).pathname || "/"; } catch { return s.url; }
+                  })()}
+                </span>
+              </div>
+              <Link
+                href={`/scan/${s.id}`}
+                className="inline-flex shrink-0 items-center gap-1 text-sm font-semibold text-primary hover:underline"
+              >
+                Report <ExternalLink className="size-3.5" />
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </Card>
+    </div>,
     "Whole-site audit",
   );
 }
