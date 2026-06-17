@@ -5,6 +5,8 @@ import {
   AlertCircle,
   AlertTriangle,
   Info,
+  ShieldCheck,
+  ShieldAlert,
 } from "lucide-react";
 import type { AuditIssue, CategoryScore, Grade } from "@/lib/types";
 import { Card, CardContent } from "@/components/ui/card";
@@ -14,6 +16,7 @@ import { CATEGORY_LABELS } from "@/lib/ui-constants";
 import { cn } from "@/lib/utils";
 import { groupCategoryScores } from "@/lib/audit/category-groups";
 import { groupFindings, rankFindings } from "@/lib/audit/findings";
+import { evaluateCompliance } from "@/lib/audit/wcag-matrix";
 
 interface ExecutiveOverviewProps {
   overallScore: number;
@@ -114,6 +117,22 @@ export function ExecutiveOverview({
 
   const criticalFindings = findings.filter((f) => f.severity === "critical").length;
 
+  // WCAG 2.2 AA compliance posture (recomputed from the same issues the
+  // Compliance tab uses) for an at-a-glance verdict in the summary.
+  const compliance = evaluateCompliance(issues);
+  const failCount = compliance.filter((c) => c.status === "fail").length;
+  const reviewCount = compliance.filter((c) => c.status === "needs-review").length;
+  const passCount = compliance.filter((c) => c.status === "pass").length;
+
+  const verdict =
+    overallScore >= 90
+      ? "Strong result — only minor issues remain."
+      : overallScore >= 70
+        ? "Close, but a few areas need work before client delivery."
+        : criticalFindings > 0
+          ? `${criticalFindings} critical finding${criticalFindings === 1 ? "" : "s"} must be resolved before this is client-ready.`
+          : "Multiple categories are below target and need attention.";
+
   return (
     <Card className="overflow-hidden">
       <CardContent className="p-6">
@@ -140,6 +159,7 @@ export function ExecutiveOverview({
               <TrendArrow current={overallScore} previous={previousScore} />
               <span className="text-sm text-muted-foreground">· {date}</span>
             </div>
+            <p className="text-sm font-medium text-foreground">{verdict}</p>
           </div>
 
           {/* Right: summary badges */}
@@ -187,6 +207,39 @@ export function ExecutiveOverview({
               ))}
           </div>
         )}
+
+        {/* WCAG 2.2 AA compliance posture */}
+        <div className="mt-6 rounded-lg border p-4">
+          <div className="mb-1.5 flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+            <div className="flex items-center gap-2">
+              {failCount > 0 ? (
+                <ShieldAlert className="size-4 text-red-600 dark:text-red-400" />
+              ) : (
+                <ShieldCheck className="size-4 text-emerald-600 dark:text-emerald-400" />
+              )}
+              <h3 className="text-base font-semibold">
+                Accessibility compliance — WCAG 2.2 AA
+              </h3>
+            </div>
+            <div className="flex items-center gap-3 text-sm tabular-nums">
+              <span className="font-medium text-red-600 dark:text-red-400">
+                {failCount} failing
+              </span>
+              <span className="text-amber-600 dark:text-amber-400">
+                {reviewCount} need review
+              </span>
+              <span className="text-emerald-600 dark:text-emerald-400">
+                {passCount} pass
+              </span>
+            </div>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Maps to EAA · ADA Title II · Section 508 · EN 301 549.{" "}
+            {failCount > 0
+              ? `${failCount} criteria fail automated checks — see the Compliance tab for the regulatory breakdown.`
+              : "No automated WCAG failures detected; manual review of the flagged criteria is still required."}
+          </p>
+        </div>
 
         {/* Top issues to fix */}
         {topFindings.length > 0 && (
