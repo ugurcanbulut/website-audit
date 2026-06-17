@@ -13,20 +13,7 @@ import { ScoreBadge } from "@/components/report/score-badge";
 import { CATEGORY_LABELS } from "@/lib/ui-constants";
 import { cn } from "@/lib/utils";
 import { groupCategoryScores } from "@/lib/audit/category-groups";
-
-const SEVERITY_RANK: Record<string, number> = {
-  critical: 0,
-  warning: 1,
-  info: 2,
-  pass: 3,
-};
-
-const SEVERITY_WEIGHT: Record<string, number> = {
-  critical: 15,
-  warning: 5,
-  info: 1,
-  pass: 0,
-};
+import { groupFindings, rankFindings } from "@/lib/audit/findings";
 
 interface ExecutiveOverviewProps {
   overallScore: number;
@@ -79,42 +66,6 @@ function TrendArrow({
   );
 }
 
-interface RankedIssue {
-  issue: AuditIssue;
-  impact: number;
-  frequency: number;
-}
-
-function rankTopIssues(issues: AuditIssue[], limit = 5): RankedIssue[] {
-  // Group by ruleId; score = severity_weight × count_of_affected_elements.
-  const byRule = new Map<string, { issue: AuditIssue; count: number }>();
-  for (const i of issues) {
-    if (i.severity === "pass") continue;
-    const existing = byRule.get(i.ruleId);
-    if (existing) {
-      existing.count++;
-      // Prefer the highest-severity representative for the card.
-      if (
-        (SEVERITY_RANK[i.severity] ?? 9) <
-        (SEVERITY_RANK[existing.issue.severity] ?? 9)
-      ) {
-        existing.issue = i;
-      }
-    } else {
-      byRule.set(i.ruleId, { issue: i, count: 1 });
-    }
-  }
-
-  const ranked: RankedIssue[] = Array.from(byRule.values()).map((g) => ({
-    issue: g.issue,
-    frequency: g.count,
-    impact: (SEVERITY_WEIGHT[g.issue.severity] ?? 0) * g.count,
-  }));
-
-  ranked.sort((a, b) => b.impact - a.impact);
-  return ranked.slice(0, limit);
-}
-
 function SeverityIcon({ severity }: { severity: string }) {
   if (severity === "critical")
     return (
@@ -138,7 +89,8 @@ export function ExecutiveOverview({
   categoryScores,
   previousScore,
 }: ExecutiveOverviewProps) {
-  const topIssues = rankTopIssues(issues, 5);
+  const findings = groupFindings(issues);
+  const topFindings = rankFindings(findings, 5);
   const grouped = groupCategoryScores(
     categoryScores.map((cs) => ({
       category: cs.category,
@@ -160,7 +112,7 @@ export function ExecutiveOverview({
     }
   })();
 
-  const totalCritical = issues.filter((i) => i.severity === "critical").length;
+  const criticalFindings = findings.filter((f) => f.severity === "critical").length;
 
   return (
     <Card className="overflow-hidden">
@@ -192,16 +144,16 @@ export function ExecutiveOverview({
 
           {/* Right: summary badges */}
           <div className="flex flex-col gap-2 md:items-end">
-            {totalCritical > 0 && (
+            {criticalFindings > 0 && (
               <Badge
                 variant="destructive"
                 className="font-medium"
               >
-                {totalCritical} critical
+                {criticalFindings} critical
               </Badge>
             )}
             <Badge variant="outline" className="font-medium">
-              {issues.length} total findings
+              {findings.length} finding{findings.length !== 1 ? "s" : ""} · {issues.length} element{issues.length !== 1 ? "s" : ""}
             </Badge>
           </div>
         </div>
@@ -237,50 +189,49 @@ export function ExecutiveOverview({
         )}
 
         {/* Top issues to fix */}
-        {topIssues.length > 0 && (
+        {topFindings.length > 0 && (
           <div className="mt-6">
             <div className="flex items-center justify-between mb-3">
               <h3 className="text-base font-semibold">Top issues to fix</h3>
               <span className="text-sm text-muted-foreground">
-                Ranked by impact × frequency
+                Ranked by impact × affected elements
               </span>
             </div>
             <ul className="space-y-2">
-              {topIssues.map((ranked) => {
-                const { issue, frequency } = ranked;
+              {topFindings.map((finding) => {
                 const categoryLabel =
-                  CATEGORY_LABELS[issue.category] ?? issue.category;
+                  CATEGORY_LABELS[finding.category] ?? finding.category;
                 return (
                   <li
-                    key={issue.ruleId}
+                    key={finding.ruleId}
                     className="flex items-start gap-3 rounded-lg border-l-4 border bg-card px-3 py-2"
                     style={{
                       borderLeftColor:
-                        issue.severity === "critical"
+                        finding.severity === "critical"
                           ? "rgb(220 38 38)"
-                          : issue.severity === "warning"
+                          : finding.severity === "warning"
                             ? "rgb(217 119 6)"
                             : "rgb(37 99 235)",
                     }}
                   >
-                    <SeverityIcon severity={issue.severity} />
+                    <SeverityIcon severity={finding.severity} />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap mb-0.5">
                         <span className="text-sm font-medium">
-                          {issue.title}
+                          {finding.title}
                         </span>
                         <Badge variant="secondary" className="text-xs">
                           {categoryLabel}
                         </Badge>
-                        {frequency > 1 && (
+                        {finding.count > 1 && (
                           <Badge variant="outline" className="text-xs">
-                            {frequency} elements
+                            {finding.count} elements
                           </Badge>
                         )}
                       </div>
-                      {issue.recommendation && (
+                      {finding.recommendation && (
                         <p className="text-sm text-muted-foreground line-clamp-1">
-                          {issue.recommendation}
+                          {finding.recommendation}
                         </p>
                       )}
                     </div>

@@ -6,6 +6,12 @@ import type { AuditIssue, AuditCategory, IssueSeverity, Grade } from "@/lib/type
 import { Badge } from "@/components/ui/badge";
 import { SEVERITY_COLORS, CATEGORY_LABELS } from "@/lib/ui-constants";
 import { ScoreBadge } from "@/components/report/score-badge";
+import {
+  groupFindings,
+  sortFindingsBySeverity,
+  elementImpactLabel,
+  type Finding,
+} from "@/lib/audit/findings";
 import { cn } from "@/lib/utils";
 
 function getGrade(score: number): Grade {
@@ -23,28 +29,10 @@ interface CategoryDetailProps {
   issueCount: { critical: number; warning: number; info: number };
 }
 
-// Group issues by ruleId
-function groupByRule(issues: AuditIssue[]): Map<string, { rule: AuditIssue; elements: AuditIssue[] }> {
-  const groups = new Map<string, { rule: AuditIssue; elements: AuditIssue[] }>();
-  for (const issue of issues) {
-    const existing = groups.get(issue.ruleId);
-    if (existing) {
-      existing.elements.push(issue);
-    } else {
-      groups.set(issue.ruleId, { rule: issue, elements: [issue] });
-    }
-  }
-  return groups;
-}
-
-const SEVERITY_ORDER: Record<string, number> = { critical: 0, warning: 1, info: 2, pass: 3 };
-
-function RuleGroup({ ruleId, rule, elements }: { ruleId: string; rule: AuditIssue; elements: AuditIssue[] }) {
-  const [expanded, setExpanded] = useState(elements.length <= 3); // Auto-expand small groups
-  const severity = rule.severity;
+function RuleGroup({ finding }: { finding: Finding }) {
+  const [expanded, setExpanded] = useState(finding.count <= 3); // Auto-expand small groups
+  const { severity, elements, helpUrl, wcagTags } = finding;
   const colors = SEVERITY_COLORS[severity] ?? SEVERITY_COLORS.info;
-  const helpUrl = rule.helpUrl ?? (rule.details?.helpUrl as string | undefined);
-  const wcagTags = rule.wcagTags ?? (rule.details?.wcagTags as string[] | undefined);
 
   return (
     <div className="rounded-lg border">
@@ -60,14 +48,21 @@ function RuleGroup({ ruleId, rule, elements }: { ruleId: string; rule: AuditIssu
             <span className={cn("inline-flex items-center rounded-full border px-2 py-0.5 text-sm font-medium", colors.badge)}>
               {severity}
             </span>
-            <span className="text-base font-semibold">{rule.title.split(":")[0] || rule.title}</span>
-            <Badge variant="secondary" className="text-sm">{elements.length} element{elements.length !== 1 ? "s" : ""}</Badge>
+            <span className="text-base font-semibold">{finding.title}</span>
+            <Badge variant="secondary" className="text-sm">{finding.count} element{finding.count !== 1 ? "s" : ""}</Badge>
+            {finding.viewports.length > 0 && (
+              <span className="text-sm text-muted-foreground">
+                {finding.viewports.length === 1
+                  ? finding.viewports[0]
+                  : `${finding.viewports.length} viewports`}
+              </span>
+            )}
             {wcagTags && wcagTags.length > 0 && (
               <span className="text-sm text-muted-foreground">{wcagTags.join(", ")}</span>
             )}
           </div>
-          {rule.description && (
-            <p className="text-sm text-muted-foreground line-clamp-2">{rule.description}</p>
+          {finding.description && (
+            <p className="text-sm text-muted-foreground line-clamp-2">{finding.description}</p>
           )}
         </div>
         {helpUrl && (
@@ -97,6 +92,7 @@ function RuleGroup({ ruleId, rule, elements }: { ruleId: string; rule: AuditIssu
 
 function ElementRow({ issue }: { issue: AuditIssue }) {
   const [showDetails, setShowDetails] = useState(false);
+  const impact = elementImpactLabel(issue);
 
   return (
     <div className="px-3 py-2 hover:bg-muted/30 transition-colors">
@@ -111,6 +107,11 @@ function ElementRow({ issue }: { issue: AuditIssue }) {
               <code className="text-sm font-mono bg-muted px-1.5 py-0.5 rounded truncate max-w-[300px]">
                 {issue.elementSelector}
               </code>
+            )}
+            {impact && (
+              <span className="rounded bg-amber-50 px-1.5 py-0.5 text-xs font-semibold tabular-nums text-amber-700 dark:bg-amber-950/30 dark:text-amber-400">
+                {impact}
+              </span>
             )}
             {issue.viewportName && (
               <span className="text-sm text-muted-foreground">{issue.viewportName}</span>
@@ -166,10 +167,10 @@ export function CategoryDetail({ category, score, issues, issueCount }: Category
   const grade = getGrade(score);
   const label = CATEGORY_LABELS[category] ?? category;
 
-  const filteredIssues = (filter === "all" ? issues : issues.filter(i => i.severity === filter))
-    .sort((a, b) => (SEVERITY_ORDER[a.severity] ?? 9) - (SEVERITY_ORDER[b.severity] ?? 9));
+  const filteredIssues =
+    filter === "all" ? issues : issues.filter((i) => i.severity === filter);
 
-  const ruleGroups = groupByRule(filteredIssues);
+  const findings = sortFindingsBySeverity(groupFindings(filteredIssues));
   const totalIssues = issueCount.critical + issueCount.warning + issueCount.info;
 
   return (
@@ -206,11 +207,11 @@ export function CategoryDetail({ category, score, issues, issueCount }: Category
 
       {/* Rule groups */}
       <div className="space-y-3">
-        {ruleGroups.size === 0 ? (
+        {findings.length === 0 ? (
           <p className="text-sm text-muted-foreground py-6 text-center">No issues in this category.</p>
         ) : (
-          Array.from(ruleGroups.entries()).map(([ruleId, { rule, elements }]) => (
-            <RuleGroup key={ruleId} ruleId={ruleId} rule={rule} elements={elements} />
+          findings.map((finding) => (
+            <RuleGroup key={finding.ruleId} finding={finding} />
           ))
         )}
       </div>
