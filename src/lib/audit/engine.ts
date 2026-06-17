@@ -204,13 +204,15 @@ export async function runAuditEngine(
       const lhDesktop = await runLighthouse({
         url,
         debuggingPort: session.debuggingPort,
-        categories: ["performance", "best-practices", "seo"],
+        categories: ["performance", "accessibility", "best-practices", "seo"],
         formFactor: "desktop",
       });
 
       lighthouseScores = {};
       if (lhDesktop.categoryScores.performance !== undefined)
         lighthouseScores.performance = lhDesktop.categoryScores.performance;
+      if (lhDesktop.categoryScores.accessibility !== undefined)
+        lighthouseScores.accessibility = lhDesktop.categoryScores.accessibility;
       if (lhDesktop.categoryScores.bestPractices !== undefined)
         lighthouseScores["best-practices"] =
           lhDesktop.categoryScores.bestPractices;
@@ -218,6 +220,12 @@ export async function runAuditEngine(
         lighthouseScores.seo = lhDesktop.categoryScores.seo;
 
       for (const issue of lhDesktop.issues) {
+        // Lighthouse's accessibility audits are a subset of axe-core, which we
+        // run separately as the authoritative a11y source (category
+        // "accessibility"). We request the Lighthouse accessibility category
+        // only for its headline gauge score — drop its issues so they don't
+        // double-count against the axe-core findings.
+        if (issue.category === "accessibility") continue;
         allIssues.push({ ...issue, scanId, viewportResultId: firstResult.id });
       }
       lighthouseData.desktop = lhDesktop.lhr;
@@ -236,7 +244,7 @@ export async function runAuditEngine(
       const lhMobile = await runLighthouse({
         url,
         debuggingPort: session.debuggingPort,
-        categories: ["performance", "best-practices", "seo"],
+        categories: ["performance", "accessibility", "best-practices", "seo"],
         formFactor: "mobile",
       });
       lighthouseData.mobile = lhMobile.lhr;

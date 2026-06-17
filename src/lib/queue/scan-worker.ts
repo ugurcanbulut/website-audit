@@ -133,7 +133,11 @@ async function processScanJob(data: ScanJobData): Promise<void> {
     await db.update(scans).set({ status: "auditing" }).where(eq(scans.id, scanId));
     publishScanEvent(scanId, {
       type: "status",
-      data: { scanId, message: "Running audit engine...", progress: 35 },
+      data: {
+        scanId,
+        message: "Running audit engine (axe-core, Lighthouse, HTML/CSS)…",
+        progress: 35,
+      },
     });
 
     const { runAuditEngine } = await import("@/lib/audit/engine");

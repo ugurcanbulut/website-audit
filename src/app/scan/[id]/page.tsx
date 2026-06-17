@@ -266,7 +266,7 @@ export default async function ScanDetailPage({ params }: ScanDetailPageProps) {
   }
 
   // Extract Lighthouse scores if available (supports new dual-format and legacy)
-  let lighthouseScores: { performance?: number; bestPractices?: number; seo?: number } | undefined;
+  let lighthouseScores: { performance?: number; accessibility?: number; bestPractices?: number; seo?: number } | undefined;
   let desktopLhr: Record<string, unknown> | undefined;
   let mobileLhr: Record<string, unknown> | undefined;
 
@@ -282,6 +282,7 @@ export default async function ScanDetailPage({ params }: ScanDetailPageProps) {
       const cats = (desktopLhr.categories ?? {}) as Record<string, { score?: number | null }>;
       lighthouseScores = {};
       if (cats.performance?.score != null) lighthouseScores.performance = Math.round(cats.performance.score * 100);
+      if (cats.accessibility?.score != null) lighthouseScores.accessibility = Math.round(cats.accessibility.score * 100);
       if (cats["best-practices"]?.score != null) lighthouseScores.bestPractices = Math.round(cats["best-practices"].score * 100);
       if (cats.seo?.score != null) lighthouseScores.seo = Math.round(cats.seo.score * 100);
     }
@@ -294,6 +295,7 @@ export default async function ScanDetailPage({ params }: ScanDetailPageProps) {
       const cats = lhJson.categories as Record<string, { score?: number | null }>;
       lighthouseScores = {};
       if (cats.performance?.score != null) lighthouseScores.performance = Math.round(cats.performance.score * 100);
+      if (cats.accessibility?.score != null) lighthouseScores.accessibility = Math.round(cats.accessibility.score * 100);
       if (cats["best-practices"]?.score != null) lighthouseScores.bestPractices = Math.round(cats["best-practices"].score * 100);
       if (cats.seo?.score != null) lighthouseScores.seo = Math.round(cats.seo.score * 100);
     }

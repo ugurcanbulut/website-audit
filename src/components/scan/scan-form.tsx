@@ -372,7 +372,7 @@ export function ScanForm({ initialUrl = "" }: { initialUrl?: string }) {
                 onChange={setAiProvider}
                 options={[
                   { value: "claude", label: "Claude (Anthropic)" },
-                  { value: "openai", label: "GPT-4o (OpenAI)" },
+                  { value: "openai", label: "GPT-5 (OpenAI)" },
                 ]}
               />
             </div>
@@ -401,7 +401,7 @@ export function ScanForm({ initialUrl = "" }: { initialUrl?: string }) {
               icon={Sparkles}
               label="AI analysis"
               value={
-                aiEnabled ? (aiProvider === "claude" ? "Claude" : "GPT-4o") : "Off"
+                aiEnabled ? (aiProvider === "claude" ? "Claude" : "GPT-5") : "Off"
               }
             />
           </div>

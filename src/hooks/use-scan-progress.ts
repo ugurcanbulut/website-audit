@@ -1,7 +1,26 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ScanEvent } from "@/lib/types";
+
+// ---------------------------------------------------------------------------
+// Progress creep
+//
+// The worker reports real progress at coarse milestones (0 → 35 scanning,
+// 35 → 65 audit engine, 65/70 → 85 AI, 90 scoring, 100 done). The 35 → 65 jump
+// covers the audit engine — Lighthouse desktop + mobile — which can stall for
+// 20-40s with no intermediate signal, so the bar *looks* frozen ("is it
+// hung?"). To keep it visibly alive we trickle the displayed value upward
+// between real milestones: it eases toward a soft ceiling a little above the
+// last real value, decelerating as it approaches, and never overtakes the next
+// real milestone or fakes completion. Real events always win — a higher real
+// value snaps the display straight up to it.
+// ---------------------------------------------------------------------------
+
+const CREEP_INTERVAL_MS = 600; // how often the display advances while waiting
+const CREEP_GAP = 18; // most a creep may add above the last real milestone
+const CREEP_CEILING = 92; // creep never implies "almost done"
+const CREEP_EASE = 0.06; // fraction of the remaining gap closed per tick
 
 interface UseScanProgressReturn {
   events: ScanEvent[];
@@ -18,6 +37,7 @@ export function useScanProgress(scanId: string): UseScanProgressReturn {
   const [isConnected, setIsConnected] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [displayProgress, setDisplayProgress] = useState(0);
   const [completedViewports, setCompletedViewports] = useState<Set<string>>(new Set());
   const eventSourceRef = useRef<EventSource | null>(null);
   const hydratedRef = useRef(false);
@@ -159,5 +179,32 @@ export function useScanProgress(scanId: string): UseScanProgressReturn {
     };
   }, [scanId, isComplete]);
 
-  return { events, latestEvent, isConnected, isComplete, progress, completedViewports };
+  // Between milestones, trickle the creep value upward so a long phase (the
+  // audit engine, mainly) doesn't read as frozen. It eases toward a soft
+  // ceiling below the next real milestone and pauses once the scan is done.
+  useEffect(() => {
+    if (isComplete) return;
+    const id = setInterval(() => {
+      setDisplayProgress((d) => {
+        const ceiling = Math.min(progress + CREEP_GAP, CREEP_CEILING);
+        if (d >= ceiling) return d;
+        const next = d + (ceiling - d) * CREEP_EASE;
+        // Settle exactly on the ceiling once we're within a hair of it.
+        return next >= ceiling - 0.5 ? ceiling : next;
+      });
+    }, CREEP_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, [progress, isComplete]);
+
+  // A real milestone always wins — the smoothed bar never lags behind true
+  // progress and snaps straight to 100 the moment the scan completes. Both
+  // inputs only ever increase, so the displayed value is monotonic.
+  return {
+    events,
+    latestEvent,
+    isConnected,
+    isComplete,
+    progress: Math.max(progress, displayProgress),
+    completedViewports,
+  };
 }
