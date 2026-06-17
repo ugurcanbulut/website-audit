@@ -12,6 +12,7 @@ import {
   elementImpactLabel,
   type Finding,
 } from "@/lib/audit/findings";
+import { useReportView } from "@/components/report/report-mode";
 import { cn } from "@/lib/utils";
 
 function getGrade(score: number): Grade {
@@ -30,10 +31,68 @@ interface CategoryDetailProps {
 }
 
 function RuleGroup({ finding }: { finding: Finding }) {
+  const isClient = useReportView() === "client";
   const [expanded, setExpanded] = useState(finding.count <= 3); // Auto-expand small groups
   const { severity, elements, helpUrl, wcagTags } = finding;
   const colors = SEVERITY_COLORS[severity] ?? SEVERITY_COLORS.info;
 
+  const headerBody = (
+    <div className="flex-1 min-w-0">
+      <div className="flex items-center gap-2 flex-wrap mb-1">
+        <span className={cn("inline-flex items-center rounded-full border px-2 py-0.5 text-sm font-medium", colors.badge)}>
+          {severity}
+        </span>
+        <span className="text-base font-semibold">{finding.title}</span>
+        <Badge variant="secondary" className="text-sm">{finding.count} element{finding.count !== 1 ? "s" : ""}</Badge>
+        {finding.viewports.length > 0 && (
+          <span className="text-sm text-muted-foreground">
+            {finding.viewports.length === 1
+              ? finding.viewports[0]
+              : `${finding.viewports.length} viewports`}
+          </span>
+        )}
+        {wcagTags && wcagTags.length > 0 && (
+          <span className="text-sm text-muted-foreground">{wcagTags.join(", ")}</span>
+        )}
+      </div>
+      {finding.description && (
+        <p className="text-sm text-muted-foreground line-clamp-2">{finding.description}</p>
+      )}
+    </div>
+  );
+
+  const learnMore = helpUrl ? (
+    <a
+      href={helpUrl}
+      target="_blank"
+      rel="noopener noreferrer"
+      onClick={(e) => e.stopPropagation()}
+      className="text-sm text-primary hover:underline shrink-0 flex items-center gap-1"
+    >
+      Learn more <ExternalLink className="size-3" />
+    </a>
+  ) : null;
+
+  // Client mode: a clean finding card — count + recommendation, no per-element
+  // CSS selectors / HTML / code fixes (internal-only technical detail).
+  if (isClient) {
+    return (
+      <div className="rounded-lg border p-3">
+        <div className="flex items-start gap-3">
+          {headerBody}
+          {learnMore}
+        </div>
+        {finding.recommendation && (
+          <div className="mt-2 rounded bg-primary/5 border border-primary/10 p-2">
+            <p className="text-sm font-medium text-primary mb-1">Recommendation</p>
+            <p className="text-sm">{finding.recommendation}</p>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Internal mode: expandable group with the full per-element drill-down.
   return (
     <div className="rounded-lg border">
       {/* Rule header */}
@@ -43,39 +102,8 @@ function RuleGroup({ finding }: { finding: Finding }) {
         aria-expanded={expanded}
       >
         {expanded ? <ChevronDown className="size-4 mt-0.5 shrink-0" /> : <ChevronRight className="size-4 mt-0.5 shrink-0" />}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap mb-1">
-            <span className={cn("inline-flex items-center rounded-full border px-2 py-0.5 text-sm font-medium", colors.badge)}>
-              {severity}
-            </span>
-            <span className="text-base font-semibold">{finding.title}</span>
-            <Badge variant="secondary" className="text-sm">{finding.count} element{finding.count !== 1 ? "s" : ""}</Badge>
-            {finding.viewports.length > 0 && (
-              <span className="text-sm text-muted-foreground">
-                {finding.viewports.length === 1
-                  ? finding.viewports[0]
-                  : `${finding.viewports.length} viewports`}
-              </span>
-            )}
-            {wcagTags && wcagTags.length > 0 && (
-              <span className="text-sm text-muted-foreground">{wcagTags.join(", ")}</span>
-            )}
-          </div>
-          {finding.description && (
-            <p className="text-sm text-muted-foreground line-clamp-2">{finding.description}</p>
-          )}
-        </div>
-        {helpUrl && (
-          <a
-            href={helpUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(e) => e.stopPropagation()}
-            className="text-sm text-primary hover:underline shrink-0 flex items-center gap-1"
-          >
-            Learn more <ExternalLink className="size-3" />
-          </a>
-        )}
+        {headerBody}
+        {learnMore}
       </button>
 
       {/* Element rows */}

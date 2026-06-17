@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { ReportModeProvider, type ReportView } from "./report-mode";
 
 interface ReportTabsProps {
   summaryContent: ReactNode;
@@ -11,6 +12,7 @@ interface ReportTabsProps {
   screenshotsContent: ReactNode;
   viewportContent: ReactNode;
   issuesCount?: number;
+  view?: ReportView;
 }
 
 // Direction D underline tabs: transparent strip over a hairline border,
@@ -34,8 +36,10 @@ export function ReportTabs({
   screenshotsContent,
   viewportContent,
   issuesCount,
+  view = "internal",
 }: ReportTabsProps) {
   return (
+    <ReportModeProvider view={view}>
     <Tabs defaultValue="summary">
       <TabsList
         variant="line"
@@ -85,5 +89,6 @@ export function ReportTabs({
         <div className="mt-6 animate-in fade-in-0 duration-200">{screenshotsContent}</div>
       </TabsContent>
     </Tabs>
+    </ReportModeProvider>
   );
 }

@@ -21,6 +21,7 @@ import {
 } from "@/lib/audit/wcag-matrix";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { useReportView } from "@/components/report/report-mode";
 import { cn } from "@/lib/utils";
 
 interface ComplianceTabProps {
@@ -223,6 +224,7 @@ function CriterionDetail({
   byRule: Map<string, AuditIssue[]>;
 }) {
   const { criterion, status, failingRules, passingRules } = result;
+  const isClient = useReportView() === "client";
 
   if (status === "needs-review") {
     return (
@@ -311,35 +313,42 @@ function CriterionDetail({
               )}
             </div>
 
-            {elementIssues.length > 0 && (
-              <div className="mt-3 space-y-2">
-                {elementIssues.slice(0, 8).map((issue) => (
-                  <div
-                    key={issue.id}
-                    className="text-sm rounded-sm border bg-muted/30 px-2 py-1.5 space-y-1"
-                  >
-                    {issue.elementSelector && (
-                      <code className="block text-xs font-mono break-all text-muted-foreground">
-                        {issue.elementSelector}
-                      </code>
-                    )}
-                    {issue.elementHtml && (
-                      <pre className="text-xs font-mono whitespace-pre-wrap break-all bg-background rounded px-2 py-1 border">
-                        {issue.elementHtml.slice(0, 400)}
-                        {issue.elementHtml.length > 400 && "…"}
-                      </pre>
-                    )}
-                  </div>
-                ))}
-                {elementIssues.length > 8 && (
-                  <p className="text-xs text-muted-foreground">
-                    … and {elementIssues.length - 8} more element
-                    {elementIssues.length - 8 === 1 ? "" : "s"}. See Issues tab
-                    for the full list.
-                  </p>
-                )}
-              </div>
-            )}
+            {elementIssues.length > 0 &&
+              (isClient ? (
+                // Client view: affected-element count only, no raw selectors/HTML.
+                <p className="mt-3 text-sm text-muted-foreground">
+                  {elementIssues.length} element
+                  {elementIssues.length === 1 ? "" : "s"} affected.
+                </p>
+              ) : (
+                <div className="mt-3 space-y-2">
+                  {elementIssues.slice(0, 8).map((issue) => (
+                    <div
+                      key={issue.id}
+                      className="text-sm rounded-sm border bg-muted/30 px-2 py-1.5 space-y-1"
+                    >
+                      {issue.elementSelector && (
+                        <code className="block text-xs font-mono break-all text-muted-foreground">
+                          {issue.elementSelector}
+                        </code>
+                      )}
+                      {issue.elementHtml && (
+                        <pre className="text-xs font-mono whitespace-pre-wrap break-all bg-background rounded px-2 py-1 border">
+                          {issue.elementHtml.slice(0, 400)}
+                          {issue.elementHtml.length > 400 && "…"}
+                        </pre>
+                      )}
+                    </div>
+                  ))}
+                  {elementIssues.length > 8 && (
+                    <p className="text-xs text-muted-foreground">
+                      … and {elementIssues.length - 8} more element
+                      {elementIssues.length - 8 === 1 ? "" : "s"}. See Issues tab
+                      for the full list.
+                    </p>
+                  )}
+                </div>
+              ))}
           </div>
         );
       })}

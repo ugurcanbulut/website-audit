@@ -42,6 +42,8 @@ import { getScoreHexColor } from "@/lib/ui-constants";
 import { GradeChip } from "@/components/dashboard/grade-chip";
 import { DeleteScanButton } from "@/components/scan/delete-scan-button";
 import { SiteHeader } from "@/components/layout/site-header";
+import { ReportModeToggle } from "@/components/report/report-mode-toggle";
+import type { ReportView } from "@/components/report/report-mode";
 
 // ---------------------------------------------------------------------------
 // Score ring (Direction D) — compact header variant, no label
@@ -99,10 +101,13 @@ function ScoreRing({
 
 interface ScanDetailPageProps {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ view?: string }>;
 }
 
-export default async function ScanDetailPage({ params }: ScanDetailPageProps) {
+export default async function ScanDetailPage({ params, searchParams }: ScanDetailPageProps) {
   const { id } = await params;
+  const { view: viewParam } = await searchParams;
+  const view: ReportView = viewParam === "client" ? "client" : "internal";
 
   const scan = await db.query.scans.findFirst({
     where: eq(scans.id, id),
@@ -405,6 +410,7 @@ export default async function ScanDetailPage({ params }: ScanDetailPageProps) {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <ReportModeToggle current={view} />
             <a
               href={`/api/scans/${id}/pdf`}
               download
@@ -418,6 +424,7 @@ export default async function ScanDetailPage({ params }: ScanDetailPageProps) {
         </div>
 
         <ReportTabs
+          view={view}
           issuesCount={issues.length}
           summaryContent={
             <ExecutiveOverview

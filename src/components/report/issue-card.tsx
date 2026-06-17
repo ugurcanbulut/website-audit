@@ -1,6 +1,9 @@
+"use client";
+
 import { cn } from "@/lib/utils";
 import type { AuditIssue } from "@/lib/types";
 import { SEVERITY_COLORS } from "@/lib/ui-constants";
+import { useReportView } from "@/components/report/report-mode";
 import {
   Card,
   CardContent,
@@ -56,6 +59,7 @@ interface IssueCardProps {
 }
 
 export function IssueCard({ issue, annotationNumber, isHighlighted, elementScreenshot }: IssueCardProps) {
+  const isClient = useReportView() === "client";
   const config = severityConfig[issue.severity] ?? severityConfig.info;
   const Icon = config.icon;
   const viewportName =
@@ -114,7 +118,7 @@ export function IssueCard({ issue, annotationNumber, isHighlighted, elementScree
       <CardContent className="space-y-3">
         <p className="text-sm text-muted-foreground">{issue.description}</p>
 
-        {issue.elementSelector && (
+        {!isClient && issue.elementSelector && (
           <div className="rounded-md bg-muted px-3 py-2">
             <p className="text-sm text-muted-foreground mb-1">
               Element selector
@@ -146,12 +150,12 @@ export function IssueCard({ issue, annotationNumber, isHighlighted, elementScree
         )}
 
         {/* Generate Fix button for accessibility issues with HTML but no existing fix */}
-        {issue.category === "accessibility" && issue.elementHtml && !issue.details?.codeFix && (
+        {!isClient && issue.category === "accessibility" && issue.elementHtml && !issue.details?.codeFix && (
           <GenerateFixButton issueId={issue.id} />
         )}
 
-        {/* Code fix (from AI analysis) */}
-        {(() => {
+        {/* Code fix (from AI analysis) — internal view only */}
+        {!isClient && (() => {
           const cf = issue.details?.codeFix;
           if (!cf || typeof cf !== "object") return null;
           const fix = cf as { before?: string; after?: string; language?: string };
